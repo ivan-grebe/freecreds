@@ -5,8 +5,7 @@ Pick a university + course → see every CCC with an articulating course, plus
 (optionally) whether that course is actually offered next term — with an
 async-online filter for CVC Exchange–listed sections.
 
-Architecture and full spec in [PLAN.md](PLAN.md). Institution code reference
-in [ASSISTCODES.md](ASSISTCODES.md).
+Institution code reference lives in [ASSISTCODES.md](ASSISTCODES.md).
 
 ## What it does
 
@@ -15,15 +14,14 @@ in [ASSISTCODES.md](ASSISTCODES.md).
    — standalone equivalents and AND-bundles both shown, with companion
    courses inlined.
 2. **Term-aware offering status** (optional filter). Pick a term from the
-   dropdown (current + next two) and each CCC row shows whether the
-   articulating course is actually on that term's schedule: *async online*,
-   *online sync*, or *unknown*. Data comes from CVC Exchange (search.cvc.edu),
-   which covers online sections across ~112 CCCs.
+   dropdown (current + next three) to narrow results to CCCs with a confirmed
+   CVC offering that term: *async online* or *online sync*. Data comes from
+   CVC Exchange (search.cvc.edu), which covers online sections across ~112 CCCs.
 3. **Async-only filter**. Checkbox that narrows to CCCs confirmed to offer
    the course fully asynchronous online in the selected term.
 4. **Schedule link-out**. Every row links to the CCC's own public schedule
    page, so the user can verify in-person / hybrid / CVC-missing sections
-   themselves. This is the fallback whenever the offering status is "unknown".
+   themselves.
 
 ## Quick start
 
@@ -78,12 +76,14 @@ src/schedule_urls.py ── auto-applied on API startup ──▶ institutions.s
 ## API
 
 - `GET /api/universities` — list ingested universities.
-- `GET /api/terms` — current + next 2 terms (codes + labels).
+- `GET /api/terms` — current + next 3 terms (codes + labels).
 - `GET /api/courses?university=CSUFULL` — list courses at that university.
-- `GET /api/reverse?university=CSUFULL&prefix=MATH&number=170A[&term=FA26][&async_only=true][&standalone_only=true]`
-  — every CCC with an articulating course. With `term`, each row includes
-  `offering_status` (`async_online`, `online_sync`, `unknown`) and
-  `schedule_url`. With `async_only`, filters to confirmed async-online rows.
+- `GET /api/reverse?university=CSUFULL&prefix=MATH&number=170A`
+  `[&term=FA26][&async_only=true][&standalone_only=true]`
+  — every CCC with an articulating course. With `term`, results are narrowed
+  to rows with a confirmed offering and include `offering_status`
+  (`async_online` or `online_sync`) plus `schedule_url`. With `async_only`,
+  filters to confirmed async-online rows.
 
 ## Implementation notes
 
@@ -98,18 +98,15 @@ src/schedule_urls.py ── auto-applied on API startup ──▶ institutions.s
 - **AND/OR tree preserved** in `articulation_course_groups` +
   `articulation_group_members`. The `reverse_index` table is the
   denormalized lookup the query endpoint reads.
-- **CVC endpoint is best-effort.** The search.cvc.edu Quottly frontend has
-  no public API; `src/cvc_fetcher.py` targets a plausible
-  `/courses.json?filter[...]` endpoint and degrades to link-out when CVC
-  doesn't respond with usable JSON. Wiring it up to the real endpoint is a
-  one-pass update once the endpoint + response shape are confirmed in
-  browser devtools — see the module docstring.
+- **CVC ingestion is best-effort.** The search.cvc.edu Quottly frontend has
+  no public course-results JSON API, so `src/cvc_fetcher.py` parses rendered
+  search HTML. If CVC is unreachable or the markup changes, offering status
+  degrades to schedule link-out; see the module docstring for details.
 - **Schedule URLs start partial.** Only 4 of 116 CCCs have schedule URLs
   seeded out of the box (verified in research). Adding the rest is a
   manual data-entry task; the frontend simply omits the link for CCCs
   with `schedule_url IS NULL`.
-- **Series-type** receiving articulations are skipped in MVP (see
-  [PLAN.md](PLAN.md) § Gotchas).
+- **Series-type** receiving articulations are skipped in MVP.
 
 ## Project layout
 

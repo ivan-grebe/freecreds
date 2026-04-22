@@ -79,6 +79,16 @@ TIMEOUT_S = 30.0
 DEFAULT_HOME_UNIVERSITY_ID = 101  # arbitrary; affects tuition display only
 MAX_PAGES_PER_QUERY = 200  # safety cap; CVC typically returns ≤ ~40 pages
 MODALITY_SUBTYPES = (("online_async", "online_async"), ("online_sync", "online_sync"))
+WRITE_COUNT_KEYS = ("written", "skipped_unknown_college", "skipped_missing_institution")
+
+
+def _empty_write_counts() -> Dict[str, int]:
+    return {key: 0 for key in WRITE_COUNT_KEYS}
+
+
+def _add_write_counts(total: Dict[str, int], counts: Dict[str, int]) -> None:
+    for key in WRITE_COUNT_KEYS:
+        total[key] += counts.get(key, 0)
 
 
 @dataclass(frozen=True)
@@ -216,7 +226,11 @@ def parse_home_college_options(html: str) -> List[Tuple[int, str]]:
 # --- HTTP layer --------------------------------------------------------------
 
 class CVCClient:
-    def __init__(self, base_url: str = CVC_BASE_URL, home_university_id: int = DEFAULT_HOME_UNIVERSITY_ID):
+    def __init__(
+        self,
+        base_url: str = CVC_BASE_URL,
+        home_university_id: int = DEFAULT_HOME_UNIVERSITY_ID,
+    ):
         self.base_url = base_url.rstrip("/")
         self.home_university_id = home_university_id
         self._client = httpx.Client(
@@ -284,7 +298,7 @@ def write_offerings(
     source: str = "cvc",
 ) -> Dict[str, int]:
     """Upsert records. `term` must already be in the terms table."""
-    counts = {"written": 0, "skipped_unknown_college": 0, "skipped_unknown_course": 0}
+    counts = _empty_write_counts()
     term_id = db.get_term_id_by_code(conn, term.code)
     if term_id is None:
         raise ValueError(f"Term {term.code} not in DB — call ensure_term first")
@@ -300,7 +314,8 @@ def write_offerings(
             "SELECT id FROM institutions WHERE TRIM(code) = ?", (code,)
         ).fetchone()
         if not inst_row:
-            counts["skipped_unknown_course"] += 1
+            counts["skipped_missing_institution"] += 1
+            log.debug("No ingested institution row for ASSIST code %s", code)
             continue
         institution_id = inst_row[0]
 
@@ -376,12 +391,11 @@ def ingest_terms(
     if fixture_path:
         log.info("Loading from fixture %s (treated as online_async)", fixture_path)
         html = fixture_path.read_text(encoding="utf-8", errors="replace")
-        totals = {"written": 0, "skipped_unknown_college": 0, "skipped_unknown_course": 0}
+        totals = _empty_write_counts()
         for term in terms:
             records = parse_search_html(html, term_code=term.code, modality="online_async")
             counts = write_offerings(conn, records, term)
-            for k in totals:
-                totals[k] += counts[k]
+            _add_write_counts(totals, counts)
             conn.commit()
             log.info("Term %s (fixture): parsed %d cards, wrote %d",
                      term.code, len(records), counts["written"])
@@ -399,7 +413,7 @@ def ingest_terms(
         conn.close()
         return
 
-    totals = {"written": 0, "skipped_unknown_college": 0, "skipped_unknown_course": 0}
+    totals = _empty_write_counts()
     # Estimate: 0.6s throttle × 2 modalities × N subjects × pages
     log.info("Estimated minimum runtime: %.1f min (pagination extends this)",
              0.6 * 2 * len(subjects) * len(terms) / 60.0)
@@ -422,8 +436,7 @@ def ingest_terms(
                             break
                         records = parse_search_html(html, term_code=term.code, modality=modality)
                         counts = write_offerings(conn, records, term)
-                        for k in totals:
-                            totals[k] += counts[k]
+                        _add_write_counts(totals, counts)
                         conn.commit()
                         term_total += counts["written"]
                         cards_for_subject += len(records)
@@ -444,7 +457,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--terms", default="", help="Comma-separated term codes, e.g. FA26,SP27")
     p.add_argument("--db", default=str(db.DEFAULT_DB_PATH))
     p.add_argument("--fixture", default=None, help="Path to saved CVC search HTML (offline mode)")
-    p.add_argument("--subjects", default="", help="Comma-separated subject prefixes (default: all in DB)")
+    p.add_argument(
+        "--subjects",
+        default="",
+        help="Comma-separated subject prefixes (default: all in DB)",
+    )
     args = p.parse_args(argv)
 
     if args.terms:

@@ -3,7 +3,8 @@
 These are the unauthenticated endpoints the assist.org website itself uses.
 The documented endpoints under `/apidocs/` that require an API key (notably
 `/AcademicYears/api`) are NOT used here — public key access opens around
-October 2026 per ASSIST. See PLAN.md for details.
+October 2026 per ASSIST. The client infers the latest usable year from
+published agreement metadata instead.
 """
 from __future__ import annotations
 
@@ -64,18 +65,19 @@ class AssistClient:
     def _get(self, path: str) -> Any:
         url = f"{self.base_url}{path}"
         delay = 1.0
-        last_exc: Optional[Exception] = None
+        last_error = "no response"
         for attempt in range(1, MAX_RETRIES + 1):
             self._throttle()
             try:
                 resp = self._client.get(url)
             except httpx.HTTPError as e:
-                last_exc = e
+                last_error = str(e)
                 log.warning("Network error on %s (attempt %d): %s", url, attempt, e)
             else:
                 if resp.status_code == 429:
                     raise AssistAPIError(f"429 rate-limited at {url}; stopping.")
                 if 500 <= resp.status_code < 600:
+                    last_error = f"HTTP {resp.status_code}: {resp.text[:200]}"
                     log.warning("Server %d on %s (attempt %d)", resp.status_code, url, attempt)
                 elif resp.status_code >= 400:
                     raise AssistAPIError(f"{resp.status_code} on {url}: {resp.text[:200]}")
@@ -87,7 +89,7 @@ class AssistClient:
             if attempt < MAX_RETRIES:
                 time.sleep(delay)
                 delay *= 2
-        raise AssistAPIError(f"Exhausted retries for {url}: {last_exc}")
+        raise AssistAPIError(f"Exhausted retries for {url}: {last_error}")
 
     @staticmethod
     def _unwrap_result(payload: Any, url_hint: str) -> Any:

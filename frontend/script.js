@@ -12,7 +12,6 @@ function el(tag, attrs = {}, children = []) {
   const e = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
     if (k === "class") e.className = v;
-    else if (k === "html") e.innerHTML = v;
     else e.setAttribute(k, v);
   }
   for (const c of [].concat(children)) {
@@ -20,6 +19,10 @@ function el(tag, attrs = {}, children = []) {
     e.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
   }
   return e;
+}
+
+function showOutput(className, message) {
+  output.replaceChildren(el("div", { class: className }, message));
 }
 
 // --- University dropdown ---
@@ -59,7 +62,7 @@ function createCombo({ input, list, matches, renderItem, displayText, exactShort
     input.setAttribute("aria-expanded", v ? "true" : "false");
   }
   function render() {
-    list.innerHTML = "";
+    list.replaceChildren();
     if (!state.filtered.length) {
       list.appendChild(el("li", { class: "combo-empty" }, "No matches"));
       return;
@@ -232,12 +235,16 @@ const courseCombo = createCombo({
 
 async function loadUniversities() {
   uniCombo.setEnabled(false, "Loading universities…");
-  const res = await fetch("/api/universities");
-  if (!res.ok) {
-    output.innerHTML = `<div class="error">Failed to load universities. Has the ingester been run?</div>`;
+  let data;
+  try {
+    const res = await fetch("/api/universities");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    data = await res.json();
+  } catch (e) {
+    showOutput("error", "Failed to load universities. Has the ingester been run?");
     return;
   }
-  const { universities } = await res.json();
+  const { universities } = data;
   if (!universities.length) {
     uniCombo.setEnabled(false, "(no data — run ingester)");
     return;
@@ -254,12 +261,16 @@ async function loadCoursesForUniversity(code) {
   }
   courseCombo.reset();
   courseCombo.setEnabled(false, "Loading courses…");
-  const res = await fetch(`/api/courses?university=${encodeURIComponent(code)}`);
-  if (!res.ok) {
+  let data;
+  try {
+    const res = await fetch(`/api/courses?university=${encodeURIComponent(code)}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    data = await res.json();
+  } catch (e) {
     courseCombo.setEnabled(false, "Failed to load courses");
     return;
   }
-  const { courses } = await res.json();
+  const { courses } = data;
   courseCombo.setItems(courses);
   courseCombo.setEnabled(true, `Search ${courses.length} courses (e.g. "math 150")`);
 }
@@ -267,8 +278,16 @@ async function loadCoursesForUniversity(code) {
 // --- Results rendering (unchanged) ---
 
 function renderCourse(c) {
-  const units = c.min_units === c.max_units ? `${c.min_units}` : `${c.min_units}–${c.max_units}`;
-  return `${c.prefix} ${c.number} — ${c.title} (${units} units)`;
+  const hasMin = c.min_units != null;
+  const hasMax = c.max_units != null;
+  let units = "";
+  if (hasMin && hasMax) {
+    units = c.min_units === c.max_units ? `${c.min_units}` : `${c.min_units}-${c.max_units}`;
+  } else if (hasMin || hasMax) {
+    units = `${hasMin ? c.min_units : c.max_units}`;
+  }
+  const unitsText = units ? ` (${units} units)` : "";
+  return `${c.prefix} ${c.number} - ${c.title}${unitsText}`;
 }
 
 // Returns { text, title } — `text` is shown under the row, `title` is the
@@ -336,17 +355,18 @@ function renderScheduleCell(r, termLabel) {
 }
 
 function renderResults(data) {
-  output.innerHTML = "";
+  output.replaceChildren();
   const q = data.query;
   const termLabel = q.term ? q.term.label : null;
-  const headerMeta = termLabel ? `${q.university.name}: ${renderCourse(q.course)} — ${termLabel}`
+  const termScope = termLabel || "any ingested term";
+  const headerMeta = termLabel ? `${q.university.name}: ${renderCourse(q.course)} - ${termLabel}`
                                 : `${q.university.name}: ${renderCourse(q.course)}`;
   output.appendChild(el("div", { class: "meta" }, headerMeta));
 
   const n = data.results.length;
   let headline;
   if (q.async_only) {
-    headline = `Articulating colleges offering this course async online in ${termLabel} (${n})`;
+    headline = `Articulating colleges offering this course async online in ${termScope} (${n})`;
   } else if (termLabel) {
     headline = `Articulating colleges offering this course in ${termLabel} (${n})`;
   } else {
@@ -359,9 +379,11 @@ function renderResults(data) {
   if (!data.results.length) {
     let msg;
     if (q.async_only) {
-      msg = `No colleges confirmed to offer this course as async online in ${termLabel}.`;
+      msg = `No colleges confirmed to offer this course as async online in ${termScope}.`;
     } else if (termLabel) {
-      msg = `No colleges confirmed to offer this course in ${termLabel}. Pick "skip" above to see the full articulation list, or click a schedule link to check a specific college.`;
+      msg = `No colleges confirmed to offer this course in ${termLabel}. `
+        + `Pick "skip" above to see the full articulation list, `
+        + "or click a schedule link to check a specific college.";
     } else {
       msg = "No articulations found for this course.";
     }
@@ -422,10 +444,18 @@ function renderResults(data) {
 
   if (data.no_articulation.length) {
     const details = el("details");
-    details.appendChild(el("summary", {}, `${data.no_articulation.length} colleges with no articulation on record`));
+    details.appendChild(el(
+      "summary",
+      {},
+      `${data.no_articulation.length} colleges with no articulation on record`,
+    ));
     const list = el("div", { class: "no-art-list" });
     for (const n of data.no_articulation) {
-      list.appendChild(el("div", { class: "no-art-item" }, `${n.cc_name} (${n.cc_code}): ${n.reason}`));
+      list.appendChild(el(
+        "div",
+        { class: "no-art-item" },
+        `${n.cc_name} (${n.cc_code}): ${n.reason}`,
+      ));
     }
     details.appendChild(list);
     output.appendChild(details);
@@ -435,28 +465,39 @@ function renderResults(data) {
 async function runSearch() {
   const uni = uniCombo.tryPromoteTypedSelection();
   if (!uni) {
-    output.innerHTML = `<div class="error">Pick a university from the list first.</div>`;
+    showOutput("error", "Pick a university from the list first.");
     return;
   }
   const code = uni.code.trim();
 
   const course = courseCombo.tryPromoteTypedSelection();
   if (!course) {
-    output.innerHTML = `<div class="error">Pick a course from the list first.</div>`;
+    showOutput("error", "Pick a course from the list first.");
     return;
   }
 
-  const params = new URLSearchParams({ university: code, prefix: course.prefix, number: course.number });
+  const params = new URLSearchParams({
+    university: code,
+    prefix: course.prefix,
+    number: course.number,
+  });
   if (standaloneCheck.checked) params.set("standalone_only", "true");
   if (termSel.value) params.set("term", termSel.value);
   if (asyncCheck.checked) params.set("async_only", "true");
-  output.innerHTML = `<div class="meta">Searching…</div>`;
+  showOutput("meta", "Searching...");
 
-  const res = await fetch(`/api/reverse?${params.toString()}`);
-  const data = await res.json();
+  let res;
+  let data;
+  try {
+    res = await fetch(`/api/reverse?${params.toString()}`);
+    data = await res.json();
+  } catch (e) {
+    showOutput("error", "Search failed. Check that the API server is running.");
+    return;
+  }
   if (!res.ok) {
-    const err = el("div", { class: "error" }, data.error || "Error");
-    output.innerHTML = "";
+    const err = el("div", { class: "error" }, data.error || data.detail || "Error");
+    output.replaceChildren();
     output.appendChild(err);
     if (data.did_you_mean && data.did_you_mean.length) {
       const list = el("div", { class: "suggestion-list" }, [

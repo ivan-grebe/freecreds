@@ -17,7 +17,7 @@ A group of 1 course → standalone equivalent (single course satisfies).
 A group of N courses with "And" → bundle (all N required together).
 A group of N courses with "Or" → flatten; each course is a standalone option.
 
-Series-typed receiving articulations are skipped in MVP (see PLAN.md).
+Series-typed receiving articulations are skipped in MVP.
 """
 from __future__ import annotations
 

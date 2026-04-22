@@ -20,7 +20,11 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def _agreement(articulations_list):
-    return {"articulations": json.dumps([{"name": "Test Dept", "articulations": articulations_list}])}
+    return {
+        "articulations": json.dumps(
+            [{"name": "Test Dept", "articulations": articulations_list}]
+        )
+    }
 
 
 def _course(cpid, prefix, number, title="Course"):

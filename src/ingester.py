@@ -14,7 +14,7 @@ import logging
 import sqlite3
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from . import db
 from .assist_api import (
@@ -27,6 +27,17 @@ from .parser import ParsedArticulation, build_reverse_rows, iter_parsed_articula
 
 log = logging.getLogger(__name__)
 
+COUNT_KEYS = ("articulations", "with_sending", "no_art", "reverse_rows")
+
+
+def _empty_counts() -> Dict[str, int]:
+    return {key: 0 for key in COUNT_KEYS}
+
+
+def _add_counts(total: Dict[str, int], counts: Dict[str, int]) -> None:
+    for key in COUNT_KEYS:
+        total[key] += counts.get(key, 0)
+
 
 def _institution_name(inst: Dict[str, Any], year_hint: Optional[int] = None) -> str:
     return institution_display_name(inst, year=year_hint)
@@ -34,7 +45,7 @@ def _institution_name(inst: Dict[str, Any], year_hint: Optional[int] = None) -> 
 
 def _find_all_summary_agreements(
     client: AssistClient, receiving_id: int, sending_id: int, year_id: int
-) -> List[tuple]:
+) -> List[Tuple[str, str]]:
     """Locate every summary agreement key that covers articulations for a
     (target, CCC, year) triple. Returns a list of (key, schema_name) pairs
     where schema_name is "AllDepartments" or "AllMajors". An empty list
@@ -50,7 +61,7 @@ def _find_all_summary_agreements(
     their source tag, so the reverse-lookup layer can show each distinct
     articulation path and which view(s) produced it.
     """
-    summaries: List[tuple] = []
+    summaries: List[Tuple[str, str]] = []
 
     resp = client.list_agreement_keys(receiving_id, sending_id, year_id, types="Department")
     reports = resp.get("allReports") or resp.get("reports") or []
@@ -85,7 +96,7 @@ def _build_cell_to_major_map(template_assets: Any) -> Dict[str, str]:
     if not isinstance(template_assets, list):
         return result
 
-    def gather_course_cell_ids(node: Any, into: set) -> None:
+    def gather_course_cell_ids(node: Any, into: Set[str]) -> None:
         if isinstance(node, dict):
             # A course cell has both an `id` (string) and a `course` sibling.
             if isinstance(node.get("id"), str) and "course" in node:
@@ -102,7 +113,7 @@ def _build_cell_to_major_map(template_assets: Any) -> Dict[str, str]:
         name = (major.get("name") or "").strip()
         if not name:
             continue
-        ids: set = set()
+        ids: Set[str] = set()
         gather_course_cell_ids(major.get("templateAssets") or [], ids)
         for cid in ids:
             # If a cell appears in multiple majors, the first wins. Rare in
@@ -188,10 +199,10 @@ def _ingest_one_agreement(
     """Persist a single summary agreement payload (either AllDepartments or
     an AllMajors-normalized-to-department shape). Returns counts.
     """
-    counts = {"articulations": 0, "with_sending": 0, "no_art": 0, "reverse_rows": 0}
+    counts = _empty_counts()
 
     # Build course ID cache so we insert each course once per run.
-    course_cache: Dict[tuple, int] = {}
+    course_cache: Dict[Tuple[int, int], int] = {}
 
     def ensure_course(parsed_course, institution_db_id: int) -> int:
         key = (institution_db_id, parsed_course.course_identifier_parent_id)
@@ -299,81 +310,117 @@ def ingest_university(
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     conn = db.connect(db_path)
     db.init_db(conn)
-
-    with AssistClient() as client:
-        institutions = client.get_institutions()
-        log.info("Fetched %d institutions", len(institutions))
-        id_map = _upsert_all_institutions(conn, institutions)
-
-        university = find_institution_by_code(institutions, university_code)
-        uni_assist_id = university["id"]
-        uni_db_id = id_map[uni_assist_id]
-        log.info("Target: %s (assist_id=%d)", _institution_name(university), uni_assist_id)
-
-        year_id = latest_academic_year_id(client, uni_assist_id)
-        log.info("Academic year ID: %d", year_id)
-
-        agreements = client.get_agreements_from(uni_assist_id)
-        active_ccs = [
-            e for e in agreements
-            if year_id in (e.get("sendingYearIds") or [])
-            and (e.get("receivingInstitution") or {}).get("isCommunityCollege")
-        ]
-        if limit_ccs is not None:
-            active_ccs = active_ccs[:limit_ccs]
-        log.info("CCCs to process: %d", len(active_ccs))
-
-        # Idempotency: clear prior data for this (university, year)
-        db.clear_articulation_data(conn, uni_db_id, year_id)
-        conn.commit()
-
-        totals = {"articulations": 0, "with_sending": 0, "no_art": 0, "reverse_rows": 0}
-        for i, entry in enumerate(active_ccs, start=1):
-            cc = entry["receivingInstitution"]
-            cc_assist_id = cc["id"]
-            cc_db_id = id_map[cc_assist_id]
-            cc_code = (cc.get("code") or "?").strip()
-
-            summaries = _find_all_summary_agreements(
-                client, uni_assist_id, cc_assist_id, year_id
+    try:
+        with AssistClient() as client:
+            institutions = client.get_institutions()
+            log.info("Fetched %d institutions", len(institutions))
+            id_map = _upsert_all_institutions(conn, institutions)
+            _ingest_university_from_context(
+                conn,
+                client,
+                institutions,
+                id_map,
+                university_code,
+                limit_ccs=limit_ccs,
             )
-            if not summaries:
-                log.warning("[%d/%d] %s: no AllDepartments or AllMajors key",
-                            i, len(active_ccs), cc_code)
+    finally:
+        conn.close()
+
+
+def _ingest_university_from_context(
+    conn: sqlite3.Connection,
+    client: AssistClient,
+    institutions: List[Dict[str, Any]],
+    id_map: Dict[int, int],
+    university_code: str,
+    limit_ccs: Optional[int] = None,
+) -> Dict[str, int]:
+    university = find_institution_by_code(institutions, university_code)
+    uni_assist_id = university["id"]
+    uni_db_id = id_map[uni_assist_id]
+    log.info("Target: %s (assist_id=%d)", _institution_name(university), uni_assist_id)
+
+    year_id = latest_academic_year_id(client, uni_assist_id)
+    log.info("Academic year ID: %d", year_id)
+
+    agreements = client.get_agreements_from(uni_assist_id)
+    active_ccs = [
+        e for e in agreements
+        if year_id in (e.get("sendingYearIds") or [])
+        and (e.get("receivingInstitution") or {}).get("isCommunityCollege")
+    ]
+    if limit_ccs is not None:
+        active_ccs = active_ccs[:limit_ccs]
+    log.info("CCCs to process: %d", len(active_ccs))
+
+    # Idempotency: clear prior data for this (university, year)
+    db.clear_articulation_data(conn, uni_db_id, year_id)
+    conn.commit()
+
+    totals = _empty_counts()
+    for i, entry in enumerate(active_ccs, start=1):
+        cc = entry["receivingInstitution"]
+        cc_assist_id = cc["id"]
+        cc_db_id = id_map[cc_assist_id]
+        cc_code = (cc.get("code") or "?").strip()
+
+        summaries = _find_all_summary_agreements(
+            client, uni_assist_id, cc_assist_id, year_id
+        )
+        if not summaries:
+            log.warning(
+                "[%d/%d] %s: no AllDepartments or AllMajors key",
+                i,
+                len(active_ccs),
+                cc_code,
+            )
+            continue
+
+        per_cc = _empty_counts()
+        sources_used: List[str] = []
+        for summary_key, schema in summaries:
+            try:
+                payload = client.get_agreement(summary_key)
+            except Exception as e:
+                log.warning(
+                    "[%d/%d] %s [%s]: fetch failed: %s",
+                    i,
+                    len(active_ccs),
+                    cc_code,
+                    schema,
+                    e,
+                )
                 continue
 
-            per_cc = {"articulations": 0, "with_sending": 0, "no_art": 0, "reverse_rows": 0}
-            sources_used: List[str] = []
-            for summary_key, schema in summaries:
-                try:
-                    payload = client.get_agreement(summary_key)
-                except Exception as e:
-                    log.warning("[%d/%d] %s [%s]: fetch failed: %s",
-                                i, len(active_ccs), cc_code, schema, e)
-                    continue
+            if schema == "AllMajors":
+                payload = _normalize_majors_payload(payload)
 
-                if schema == "AllMajors":
-                    payload = _normalize_majors_payload(payload)
-
-                counts = _ingest_one_agreement(
-                    conn, payload, uni_db_id, cc_db_id, year_id,
-                    source_context=schema,
-                )
-                for k, v in counts.items():
-                    per_cc[k] += v
-                    totals[k] = totals.get(k, 0) + v
-                sources_used.append(schema)
-            conn.commit()
-            log.info(
-                "[%d/%d] %s [%s]: %d articulations (%d with sending, %d no-art), %d reverse rows",
-                i, len(active_ccs), cc_code, "+".join(sources_used) or "none",
-                per_cc["articulations"], per_cc["with_sending"], per_cc["no_art"],
-                per_cc["reverse_rows"],
+            counts = _ingest_one_agreement(
+                conn,
+                payload,
+                uni_db_id,
+                cc_db_id,
+                year_id,
+                source_context=schema,
             )
+            _add_counts(per_cc, counts)
+            _add_counts(totals, counts)
+            sources_used.append(schema)
+        conn.commit()
+        log.info(
+            "[%d/%d] %s [%s]: %d articulations (%d with sending, %d no-art), %d reverse rows",
+            i,
+            len(active_ccs),
+            cc_code,
+            "+".join(sources_used) or "none",
+            per_cc["articulations"],
+            per_cc["with_sending"],
+            per_cc["no_art"],
+            per_cc["reverse_rows"],
+        )
 
-        log.info("Done. Totals: %s", totals)
-
-    conn.close()
+    log.info("Done. Totals: %s", totals)
+    return totals
 
 
 DEFAULT_TARGET_CATEGORIES = ("CSU", "UC", "AICCU")
@@ -391,55 +438,80 @@ def ingest_all_targets(
     """
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     log.info("Fetching institution list from ASSIST...")
-    with AssistClient() as client:
-        institutions = client.get_institutions()
+    conn = db.connect(db_path)
+    db.init_db(conn)
+    try:
+        with AssistClient() as client:
+            institutions = client.get_institutions()
+            id_map = _upsert_all_institutions(conn, institutions)
 
-    wanted = set(categories)
-    targets: List[tuple] = []
-    for inst in institutions:
-        cat = inst.get("category")
-        cat_name = db.CATEGORY_MAP.get(cat) if isinstance(cat, int) else None
-        if cat_name not in wanted:
-            continue
-        code = (inst.get("code") or "").strip()
-        if code:
-            targets.append((cat_name, code))
-    # Stable, predictable order: category then code.
-    targets.sort()
+            wanted = {c.strip().upper() for c in categories}
+            targets: List[Tuple[str, str]] = []
+            for inst in institutions:
+                cat = inst.get("category")
+                cat_name = db.CATEGORY_MAP.get(cat) if isinstance(cat, int) else None
+                if cat_name not in wanted:
+                    continue
+                code = (inst.get("code") or "").strip()
+                if code:
+                    targets.append((cat_name, code))
+            # Stable, predictable order: category then code.
+            targets.sort()
 
-    by_cat = {c: sum(1 for cc, _ in targets if cc == c) for c in sorted(wanted)}
-    log.info("Targets: %d total (%s)", len(targets),
-             ", ".join(f"{c}={n}" for c, n in by_cat.items()))
+            by_cat = {c: sum(1 for cc, _ in targets if cc == c) for c in sorted(wanted)}
+            log.info(
+                "Targets: %d total (%s)",
+                len(targets),
+                ", ".join(f"{c}={n}" for c, n in by_cat.items()),
+            )
 
-    succeeded: List[str] = []
-    failed: List[str] = []
-    for i, (cat, code) in enumerate(targets, start=1):
-        log.info("=" * 60)
-        log.info("[%d/%d] %s (%s)", i, len(targets), code, cat)
-        try:
-            ingest_university(code, db_path=db_path)
-        except Exception as e:
-            log.warning("[%d/%d] FAILED %s: %s", i, len(targets), code, e)
-            failed.append(code)
-        else:
-            succeeded.append(code)
+            succeeded: List[str] = []
+            failed: List[str] = []
+            for i, (cat, code) in enumerate(targets, start=1):
+                log.info("=" * 60)
+                log.info("[%d/%d] %s (%s)", i, len(targets), code, cat)
+                try:
+                    _ingest_university_from_context(conn, client, institutions, id_map, code)
+                except Exception as e:
+                    conn.rollback()
+                    log.warning("[%d/%d] FAILED %s: %s", i, len(targets), code, e)
+                    failed.append(code)
+                else:
+                    succeeded.append(code)
 
-    log.info("=" * 60)
-    log.info("Done. %d succeeded, %d failed.", len(succeeded), len(failed))
-    if failed:
-        log.info("Failed codes: %s", ", ".join(failed))
-    return {"succeeded": succeeded, "failed": failed}
+            log.info("=" * 60)
+            log.info("Done. %d succeeded, %d failed.", len(succeeded), len(failed))
+            if failed:
+                log.info("Failed codes: %s", ", ".join(failed))
+            return {"succeeded": succeeded, "failed": failed}
+    finally:
+        conn.close()
 
 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--university", default="CSUFULL", help="Target university ASSIST code (see ASSISTCODES.md)")
+    parser.add_argument(
+        "--university",
+        default="CSUFULL",
+        help="Target university ASSIST code (see ASSISTCODES.md)",
+    )
     parser.add_argument("--db", default=str(db.DEFAULT_DB_PATH), help="SQLite database path")
-    parser.add_argument("--limit", type=int, default=None, help="Max number of CCs to process (for testing)")
-    parser.add_argument("--all", action="store_true",
-                        help="Ingest every CSU/UC/AICCU target sequentially (ignores --university and --limit)")
-    parser.add_argument("--categories", default=",".join(DEFAULT_TARGET_CATEGORIES),
-                        help="Comma-separated category filter for --all (default: CSU,UC,AICCU)")
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Max number of CCs to process (for testing)",
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Ingest every CSU/UC/AICCU target sequentially (ignores --university and --limit)",
+    )
+    parser.add_argument(
+        "--categories",
+        default=",".join(DEFAULT_TARGET_CATEGORIES),
+        help="Comma-separated category filter for --all (default: CSU,UC,AICCU)",
+    )
     args = parser.parse_args(argv)
     if args.all:
         cats = tuple(c.strip().upper() for c in args.categories.split(",") if c.strip())

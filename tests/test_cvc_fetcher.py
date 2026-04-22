@@ -50,7 +50,9 @@ CARD_HTML = """
     <div class="course-head">
       <div class="font-semibold text-sm">Coalinga College</div>
       <h3>
-        <a class="course-details-link" href="/courses/1842959?filter%5Buniversity_id%5D=101">MATH45 - Contemporary Math</a>
+        <a class="course-details-link" href="/courses/1842959?filter%5Buniversity_id%5D=101">
+          MATH45 - Contemporary Math
+        </a>
       </h3>
     </div>
   </div>
@@ -144,12 +146,35 @@ def test_write_offerings_smoke():
     counts = write_offerings(conn, records, term)
     assert counts["written"] == 1
     assert counts["skipped_unknown_college"] == 1
+    assert counts["skipped_missing_institution"] == 0
 
     row = conn.execute(
         "SELECT modality, source FROM class_offerings WHERE prefix='MATH' AND number='45'"
     ).fetchone()
     assert row["modality"] == "online_async"
     assert row["source"] == "cvc"
+
+
+def test_write_offerings_counts_missing_institution_separately():
+    conn = _seed_conn()
+    term = parse_code("FA26")
+    ensure_term(conn, term)
+    conn.commit()
+    conn.execute("DELETE FROM institutions WHERE code = 'SMCC'")
+    conn.commit()
+
+    records = [
+        OfferingRecord(
+            college_name="Santa Monica College",
+            prefix="MATH", number="45",
+            term_code="FA26", modality="online_async",
+            source_ref="https://search.cvc.edu/courses/1",
+        )
+    ]
+    counts = write_offerings(conn, records, term)
+    assert counts["written"] == 0
+    assert counts["skipped_unknown_college"] == 0
+    assert counts["skipped_missing_institution"] == 1
 
 
 def test_write_offerings_idempotent_upsert():

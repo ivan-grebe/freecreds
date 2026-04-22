@@ -7,7 +7,7 @@ smoke:
 	python -m src.assist_api
 
 ingest:
-	python -m src.ingester --university CSUF
+	python -m src.ingester --university CSUFULL
 
 serve:
 	python -m uvicorn src.api:app --reload --port 8000
