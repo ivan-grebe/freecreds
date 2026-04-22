@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS institutions (
   code TEXT NOT NULL,
   name TEXT NOT NULL,
   category TEXT NOT NULL CHECK(category IN ('CCC','CSU','UC','AICCU')),
-  term_type TEXT NOT NULL
+  term_type TEXT NOT NULL,
+  schedule_url TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_inst_code ON institutions(code);
 CREATE INDEX IF NOT EXISTS idx_inst_category ON institutions(category);
@@ -47,9 +48,10 @@ CREATE TABLE IF NOT EXISTS articulations (
   sending_cc_id INTEGER NOT NULL REFERENCES institutions(id),
   university_id INTEGER NOT NULL REFERENCES institutions(id),
   academic_year_id INTEGER NOT NULL,
+  source_context TEXT NOT NULL DEFAULT 'AllDepartments',
   no_articulation_reason TEXT,
   raw_json TEXT NOT NULL,
-  UNIQUE(receiving_course_id, sending_cc_id, academic_year_id)
+  UNIQUE(receiving_course_id, sending_cc_id, academic_year_id, source_context)
 );
 CREATE INDEX IF NOT EXISTS idx_art_lookup ON articulations(
   university_id, academic_year_id, receiving_course_id
@@ -76,7 +78,8 @@ CREATE TABLE IF NOT EXISTS reverse_index (
   sending_course_id INTEGER NOT NULL REFERENCES courses(id),
   is_standalone_equivalent BOOLEAN NOT NULL,
   companion_course_ids TEXT,
-  academic_year_id INTEGER NOT NULL
+  academic_year_id INTEGER NOT NULL,
+  source_context TEXT NOT NULL DEFAULT 'AllDepartments'
 );
 CREATE INDEX IF NOT EXISTS idx_reverse ON reverse_index(
   receiving_course_id, academic_year_id
@@ -91,6 +94,34 @@ CREATE TABLE IF NOT EXISTS cross_listings (
   alias_course_id INTEGER NOT NULL REFERENCES courses(id),
   UNIQUE(primary_course_id, alias_course_id)
 );
+
+CREATE TABLE IF NOT EXISTS terms (
+  id INTEGER PRIMARY KEY,
+  code TEXT NOT NULL UNIQUE,
+  label TEXT NOT NULL,
+  season TEXT NOT NULL,
+  year INTEGER NOT NULL,
+  start_date TEXT,
+  end_date TEXT
+);
+
+CREATE TABLE IF NOT EXISTS class_offerings (
+  id INTEGER PRIMARY KEY,
+  institution_id INTEGER NOT NULL REFERENCES institutions(id),
+  course_id INTEGER REFERENCES courses(id),
+  prefix TEXT NOT NULL,
+  number TEXT NOT NULL,
+  term_id INTEGER NOT NULL REFERENCES terms(id),
+  modality TEXT NOT NULL CHECK(modality IN ('online_async','online_sync','online_mixed')),
+  source TEXT NOT NULL,
+  source_ref TEXT,
+  fetched_at TEXT NOT NULL,
+  UNIQUE(institution_id, prefix, number, term_id, source_ref)
+);
+CREATE INDEX IF NOT EXISTS idx_offerings_lookup
+  ON class_offerings(institution_id, prefix, number, term_id);
+CREATE INDEX IF NOT EXISTS idx_offerings_course
+  ON class_offerings(course_id, term_id);
 """
 
 
@@ -105,7 +136,60 @@ def connect(path: Path = DEFAULT_DB_PATH) -> sqlite3.Connection:
 
 def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA)
+    _migrate(conn)
     conn.commit()
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Apply additive migrations to already-created DBs.
+
+    CREATE TABLE IF NOT EXISTS won't add new columns or change UNIQUE
+    constraints on an existing table, so we probe and rewrite when needed.
+    All migrations are idempotent.
+    """
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(institutions)")}
+    if "schedule_url" not in cols:
+        conn.execute("ALTER TABLE institutions ADD COLUMN schedule_url TEXT")
+
+    # articulations: add `source_context` + widen UNIQUE to include it.
+    # SQLite can't alter a UNIQUE constraint in place; we rebuild the table.
+    art_cols = {row[1] for row in conn.execute("PRAGMA table_info(articulations)")}
+    if "source_context" not in art_cols:
+        conn.execute("PRAGMA foreign_keys = OFF")
+        conn.executescript(
+            """
+            CREATE TABLE articulations_new (
+              id INTEGER PRIMARY KEY,
+              receiving_course_id INTEGER NOT NULL REFERENCES courses(id),
+              sending_cc_id INTEGER NOT NULL REFERENCES institutions(id),
+              university_id INTEGER NOT NULL REFERENCES institutions(id),
+              academic_year_id INTEGER NOT NULL,
+              source_context TEXT NOT NULL DEFAULT 'AllDepartments',
+              no_articulation_reason TEXT,
+              raw_json TEXT NOT NULL,
+              UNIQUE(receiving_course_id, sending_cc_id, academic_year_id, source_context)
+            );
+            INSERT INTO articulations_new
+              (id, receiving_course_id, sending_cc_id, university_id,
+               academic_year_id, no_articulation_reason, raw_json)
+              SELECT id, receiving_course_id, sending_cc_id, university_id,
+                     academic_year_id, no_articulation_reason, raw_json
+              FROM articulations;
+            DROP TABLE articulations;
+            ALTER TABLE articulations_new RENAME TO articulations;
+            CREATE INDEX IF NOT EXISTS idx_art_lookup ON articulations(
+              university_id, academic_year_id, receiving_course_id
+            );
+            """
+        )
+        conn.execute("PRAGMA foreign_keys = ON")
+
+    rev_cols = {row[1] for row in conn.execute("PRAGMA table_info(reverse_index)")}
+    if "source_context" not in rev_cols:
+        conn.execute(
+            "ALTER TABLE reverse_index "
+            "ADD COLUMN source_context TEXT NOT NULL DEFAULT 'AllDepartments'"
+        )
 
 
 def upsert_institution(
@@ -179,21 +263,25 @@ def insert_articulation(
     academic_year_id: int,
     no_articulation_reason: Optional[str],
     raw_json: str,
+    source_context: str = "AllDepartments",
 ) -> Optional[int]:
     """Insert an articulation row. Returns the row id, or None if a
-    duplicate already exists (which can happen when a course appears in
-    multiple departments).
+    duplicate already exists (same receiving/sending/year/source_context).
+    Duplicates within a single source happen when a course appears in
+    multiple departments.
     """
     cur = conn.execute(
         """INSERT OR IGNORE INTO articulations
              (receiving_course_id, sending_cc_id, university_id,
-              academic_year_id, no_articulation_reason, raw_json)
-           VALUES (?, ?, ?, ?, ?, ?)""",
+              academic_year_id, source_context,
+              no_articulation_reason, raw_json)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
         (
             receiving_course_id,
             sending_cc_id,
             university_id,
             academic_year_id,
+            source_context,
             no_articulation_reason,
             raw_json,
         ),
@@ -233,20 +321,21 @@ def insert_group_member(
 
 def insert_reverse_index_rows(
     conn: sqlite3.Connection,
-    rows: Iterable[Tuple[int, int, int, bool, List[int], int]],
+    rows: Iterable[Tuple[int, int, int, bool, List[int], int, str]],
 ) -> None:
     """rows: iterable of (receiving_course_id, sending_cc_id, sending_course_id,
-    is_standalone, companion_ids, academic_year_id).
+    is_standalone, companion_ids, academic_year_id, source_context).
     """
     payload = [
-        (rcid, ccid, scid, 1 if standalone else 0, json.dumps(companions), yid)
-        for (rcid, ccid, scid, standalone, companions, yid) in rows
+        (rcid, ccid, scid, 1 if standalone else 0, json.dumps(companions), yid, src)
+        for (rcid, ccid, scid, standalone, companions, yid, src) in rows
     ]
     conn.executemany(
         """INSERT INTO reverse_index
              (receiving_course_id, sending_cc_id, sending_course_id,
-              is_standalone_equivalent, companion_course_ids, academic_year_id)
-           VALUES (?, ?, ?, ?, ?, ?)""",
+              is_standalone_equivalent, companion_course_ids, academic_year_id,
+              source_context)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
         payload,
     )
 
@@ -259,6 +348,95 @@ def insert_cross_listing(
            VALUES (?, ?)""",
         (primary_course_id, alias_course_id),
     )
+
+
+def upsert_term(
+    conn: sqlite3.Connection,
+    code: str,
+    label: str,
+    season: str,
+    year: int,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+) -> int:
+    cur = conn.execute(
+        """INSERT INTO terms (code, label, season, year, start_date, end_date)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(code) DO UPDATE SET
+             label=excluded.label,
+             season=excluded.season,
+             year=excluded.year,
+             start_date=COALESCE(excluded.start_date, terms.start_date),
+             end_date=COALESCE(excluded.end_date, terms.end_date)
+           RETURNING id""",
+        (code, label, season, year, start_date, end_date),
+    )
+    return cur.fetchone()[0]
+
+
+def get_term_id_by_code(conn: sqlite3.Connection, code: str) -> Optional[int]:
+    row = conn.execute("SELECT id FROM terms WHERE code = ?", (code,)).fetchone()
+    return row[0] if row else None
+
+
+def upsert_class_offering(
+    conn: sqlite3.Connection,
+    institution_id: int,
+    course_id: Optional[int],
+    prefix: str,
+    number: str,
+    term_id: int,
+    modality: str,
+    source: str,
+    source_ref: Optional[str],
+    fetched_at: str,
+) -> None:
+    conn.execute(
+        """INSERT INTO class_offerings
+             (institution_id, course_id, prefix, number, term_id,
+              modality, source, source_ref, fetched_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(institution_id, prefix, number, term_id, source_ref) DO UPDATE SET
+             course_id=excluded.course_id,
+             modality=excluded.modality,
+             fetched_at=excluded.fetched_at""",
+        (
+            institution_id,
+            course_id,
+            prefix.strip().upper(),
+            number.strip().upper(),
+            term_id,
+            modality,
+            source,
+            source_ref,
+            fetched_at,
+        ),
+    )
+
+
+def clear_offerings(
+    conn: sqlite3.Connection, source: str, term_ids: Iterable[int]
+) -> None:
+    """Delete offerings from a given source for the given terms. Used to
+    make ingestion idempotent.
+    """
+    term_id_list = list(term_ids)
+    if not term_id_list:
+        return
+    q_marks = ",".join(["?"] * len(term_id_list))
+    conn.execute(
+        f"DELETE FROM class_offerings WHERE source = ? AND term_id IN ({q_marks})",
+        [source, *term_id_list],
+    )
+
+
+def set_schedule_url(conn: sqlite3.Connection, code: str, url: str) -> int:
+    """Set schedule_url on institutions matching `code` (trimmed). Returns rows affected."""
+    cur = conn.execute(
+        "UPDATE institutions SET schedule_url = ? WHERE TRIM(code) = ?",
+        (url, code.strip()),
+    )
+    return cur.rowcount
 
 
 def clear_articulation_data(

@@ -117,14 +117,23 @@ class AssistClient:
         return self._unwrap_result(self._get(path), path) or []
 
     def list_agreement_keys(
-        self, receiving_id: int, sending_id: int, year_id: int
+        self,
+        receiving_id: int,
+        sending_id: int,
+        year_id: int,
+        types: str = "Department",
     ) -> Dict[str, Any]:
-        """Return per-department agreement keys and the AllDepartments key
+        """Return per-{type} agreement keys and the "All{type}s" summary key
         between the two institutions for the given academic year.
+
+        Use `types="Department"` for CSU/UC targets (the norm) and
+        `types="Major"` for AICCU/private targets that only publish at the
+        major level. The response shape is identical; only the report
+        `type` values differ ("AllDepartments" vs "AllMajors").
         """
         path = (
             f"/articulation/api/Agreements/Published/for/{receiving_id}"
-            f"/to/{sending_id}/in/{year_id}?types=Department"
+            f"/to/{sending_id}/in/{year_id}?types={types}"
         )
         return self._unwrap_result(self._get(path), path) or {}
 
@@ -139,13 +148,16 @@ class AssistClient:
 # --- Helpers built atop the client ---
 
 def latest_academic_year_id(client: AssistClient, reference_institution_id: int) -> int:
-    """Infer the most recent published academic year ID.
+    """Infer the most recent academic year ID where at least one CCC has
+    a published agreement to the target.
 
-    We don't have access to `/AcademicYears/api` (API-key gated). Instead,
-    enumerate published agreements from a well-populated receiving institution
-    (e.g. any CSU) and take the max year ID that appears on the *sending* side.
-    Community-college sendingYearIds cover every year their agreements were
-    published, so the max across all of them is the current year.
+    We only consider `sendingYearIds` (years each CCC has published agreements
+    TO this target) — not `receivingYearIds` (years the target has published
+    its own side), because the ingester filters CCCs by `sendingYearIds`
+    containing the chosen year. Using the target's `receivingYearIds` would
+    yield a year where no CCC actually has agreements ready, producing an
+    empty filter result — common for AICCU targets whose CCC partners lag on
+    republishing.
     """
     entries = client.get_agreements_from(reference_institution_id)
     max_id = 0
@@ -153,46 +165,21 @@ def latest_academic_year_id(client: AssistClient, reference_institution_id: int)
         for y in e.get("sendingYearIds") or []:
             if isinstance(y, int) and y > max_id:
                 max_id = y
-        for y in e.get("receivingYearIds") or []:
-            if isinstance(y, int) and y > max_id:
-                max_id = y
     if not max_id:
         raise AssistAPIError(
-            f"Could not infer academic year from institution {reference_institution_id}"
+            f"No CCC has a published sendingYearIds for institution {reference_institution_id}"
         )
     return max_id
-
-
-# Common shorthand → ASSIST institution code. ASSIST uses internal codes
-# like "CSUFULL" and "UCSDCMP"; the public/colloquial names are shorter.
-CODE_ALIASES: Dict[str, str] = {
-    "CSUF": "CSUFULL",
-    "CSUFRES": "CSUFRES",
-    "CSULB": "CSULB",
-    "CSULA": "CSULA",
-    "SDSU": "SDSU",
-    "SJSU": "SJSU",
-    "UCSD": "UCSD",
-    "UCLA": "UCLA",
-    "UCB": "UCB",
-    "UCD": "UCD",
-    "UCI": "UCI",
-    "UCR": "UCR",
-    "UCSB": "UCSB",
-    "UCSC": "UCSC",
-    "UCM": "UCM",
-}
 
 
 def find_institution_by_code(
     institutions: List[Dict[str, Any]], code: str
 ) -> Dict[str, Any]:
     target = code.strip().upper()
-    target = CODE_ALIASES.get(target, target)
     for inst in institutions:
         if (inst.get("code") or "").strip().upper() == target:
             return inst
-    raise KeyError(f"No institution with code {code!r}")
+    raise KeyError(f"No institution with code {code!r} (see ASSISTCODES.md)")
 
 
 def institution_display_name(inst: Dict[str, Any], year: Optional[int] = None) -> str:
@@ -213,7 +200,7 @@ def _smoke() -> None:
     with AssistClient() as c:
         insts = c.get_institutions()
         print(f"Got {len(insts)} institutions")
-        csuf = find_institution_by_code(insts, "CSUF")
+        csuf = find_institution_by_code(insts, "CSUFULL")
         print("CSUF record:")
         print(f"  id={csuf['id']} code={csuf['code']!r}")
         print(f"  name={institution_display_name(csuf)}")

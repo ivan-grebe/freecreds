@@ -50,6 +50,11 @@ class ParsedArticulation:
     sending_groups: List[SendingGroup] = field(default_factory=list)
     no_articulation_reason: Optional[str] = None
     raw: Dict[str, Any] = field(default_factory=dict)
+    # For AllMajors-sourced payloads, the specific major (e.g. "Biology, BS")
+    # that this articulation belongs to, derived from the templateAssets
+    # mapping in the normalizer. None for AllDepartments entries or when
+    # the cell lookup couldn't resolve a major.
+    source_major: Optional[str] = None
 
 
 def _course_ref(obj: Dict[str, Any]) -> Optional[CourseRef]:
@@ -140,6 +145,7 @@ def iter_parsed_articulations(agreement_payload: Dict[str, Any]) -> Iterator[Par
                 sending_groups=groups,
                 no_articulation_reason=no_art,
                 raw=a,
+                source_major=a.get("_source_major"),
             )
 
 
