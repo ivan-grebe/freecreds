@@ -16,7 +16,7 @@ from src.parser import (
     iter_parsed_articulations,
 )
 
-FIXTURES = Path(__file__).parent.parent / "fixtures"
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def _agreement(articulations_list):
