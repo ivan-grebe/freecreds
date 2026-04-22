@@ -1,0 +1,4263 @@
+[
+  {
+    "receivingInstitution": {
+      "id": 75,
+      "code": "CPP     ",
+      "isCommunityCollege": false,
+      "category": "CSU",
+      "termType": "Quarter",
+      "names": [
+        {
+          "name": "California Polytechnic University, Pomona",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2018
+        },
+        {
+          "termType": "Quarter",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": [
+      74,
+      75,
+      76
+    ],
+    "sendingYearIds": null
+  },
+  {
+    "receivingInstitution": {
+      "id": 76,
+      "code": "CSULA   ",
+      "isCommunityCollege": false,
+      "category": "CSU",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "California State University, Los Angeles",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": [
+      74,
+      75,
+      76
+    ],
+    "sendingYearIds": null
+  },
+  {
+    "receivingInstitution": {
+      "id": 11,
+      "code": "CPSLO   ",
+      "isCommunityCollege": false,
+      "category": "CSU",
+      "termType": "Quarter",
+      "names": [
+        {
+          "name": "California Polytechnic University, San Luis Obispo",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2026
+        },
+        {
+          "termType": "Quarter",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": [
+      74,
+      75,
+      76
+    ],
+    "sendingYearIds": null
+  },
+  {
+    "receivingInstitution": {
+      "id": 50,
+      "code": "CSUDH   ",
+      "isCommunityCollege": false,
+      "category": "CSU",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "California State University, Dominguez Hills",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": [
+      74,
+      75,
+      76
+    ],
+    "sendingYearIds": null
+  },
+  {
+    "receivingInstitution": {
+      "id": 42,
+      "code": "CSUN    ",
+      "isCommunityCollege": false,
+      "category": "CSU",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "California State University, Northridge",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": [
+      74,
+      75
+    ],
+    "sendingYearIds": null
+  },
+  {
+    "receivingInstitution": {
+      "id": 81,
+      "code": "CSULB   ",
+      "isCommunityCollege": false,
+      "category": "CSU",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "California State University, Long Beach",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": [
+      74,
+      75,
+      76
+    ],
+    "sendingYearIds": null
+  },
+  {
+    "receivingInstitution": {
+      "id": 141,
+      "code": "CSUC    ",
+      "isCommunityCollege": false,
+      "category": "CSU",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "California State University, Chico",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": [
+      74,
+      75,
+      76
+    ],
+    "sendingYearIds": null
+  },
+  {
+    "receivingInstitution": {
+      "id": 98,
+      "code": "CSUB    ",
+      "isCommunityCollege": false,
+      "category": "CSU",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "California State University, Bakersfield",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": [
+      74
+    ],
+    "sendingYearIds": null
+  },
+  {
+    "receivingInstitution": {
+      "id": 116,
+      "code": "SFSU    ",
+      "isCommunityCollege": false,
+      "category": "CSU",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "San Francisco State University",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": [
+      74,
+      75,
+      76
+    ],
+    "sendingYearIds": null
+  },
+  {
+    "receivingInstitution": {
+      "id": 39,
+      "code": "SJSU    ",
+      "isCommunityCollege": false,
+      "category": "CSU",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "San Jose State University",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": [
+      74,
+      75,
+      76
+    ],
+    "sendingYearIds": null
+  },
+  {
+    "receivingInstitution": {
+      "id": 217,
+      "code": "UOP",
+      "isCommunityCollege": false,
+      "category": "Independent",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "University of the Pacific",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2024
+        }
+      ],
+      "beginId": 75,
+      "endId": null
+    },
+    "receivingYearIds": [
+      75,
+      76
+    ],
+    "sendingYearIds": null
+  },
+  {
+    "receivingInstitution": {
+      "id": 230,
+      "code": "APU",
+      "isCommunityCollege": false,
+      "category": "Independent",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Azusa Pacific University",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2025
+        }
+      ],
+      "beginId": 76,
+      "endId": null
+    },
+    "receivingYearIds": [
+      76
+    ],
+    "sendingYearIds": null
+  },
+  {
+    "receivingInstitution": {
+      "id": 214,
+      "code": "PEPRDN",
+      "isCommunityCollege": false,
+      "category": "Independent",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Pepperdine University",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2024
+        }
+      ],
+      "beginId": 75,
+      "endId": null
+    },
+    "receivingYearIds": [
+      76
+    ],
+    "sendingYearIds": null
+  },
+  {
+    "receivingInstitution": {
+      "id": 23,
+      "code": "CSUSM   ",
+      "isCommunityCollege": false,
+      "category": "CSU",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "California State University, San Marcos",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": [
+      76
+    ],
+    "sendingYearIds": null
+  },
+  {
+    "receivingInstitution": {
+      "id": 201,
+      "code": "CLU",
+      "isCommunityCollege": false,
+      "category": "Independent",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "California Lutheran University",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2024
+        }
+      ],
+      "beginId": 75,
+      "endId": null
+    },
+    "receivingYearIds": [
+      75,
+      76
+    ],
+    "sendingYearIds": null
+  },
+  {
+    "receivingInstitution": {
+      "id": 90,
+      "code": "YUBA    ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Yuba College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2016
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 110,
+      "code": "AHC     ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Allan Hancock College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2016
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 27,
+      "code": "ARC     ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "American River College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 121,
+      "code": "AVC     ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Antelope Valley College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 84,
+      "code": "BAKERFLD",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Bakersfield College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 20,
+      "code": "BARSTOW ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Barstow Community College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 8,
+      "code": "BUTTE   ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Butte College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2021
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 58,
+      "code": "VISTA",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Vista Community College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        },
+        {
+          "name": "Berkeley City College",
+          "hasDepartments": true,
+          "fromYear": 2006,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2017
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 2006
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 68,
+      "code": "CANADA  ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Canada College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 41,
+      "code": "CABRILLO",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Cabrillo College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 104,
+      "code": "CERRITOS",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Cerritos College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 9,
+      "code": "CERRO   ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Cerro Coso Community College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 96,
+      "code": "CHABOT  ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Chabot College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2022
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 69,
+      "code": "CHAFFEY ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Chaffey College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 97,
+      "code": "CITRUS  ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Citrus College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 33,
+      "code": "SFCITY  ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "City College of San Francisco",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2019
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 2016
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 150,
+      "code": "CLOVIS  ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Clovis Community College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2022
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 2015
+        }
+      ],
+      "beginId": 66,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 105,
+      "code": "COASTLIN",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Coastline Community College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 111,
+      "code": "ALAMEDA ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "College of Alameda",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2017
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 4,
+      "code": "MARIN   ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "College of Marin",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 140,
+      "code": "CANYONS ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "College of the Canyons",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 30,
+      "code": "DESERT  ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "College of the Desert",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 83,
+      "code": "REDWOODS",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "College of the Redwoods",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 6,
+      "code": "SEQUOIAS",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "College of the Sequoias",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 102,
+      "code": "SISKIYOU",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "College of the Siskiyous",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 10,
+      "code": "COLUMBIA",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Columbia College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 153,
+      "code": "COMPTON",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Compton College",
+          "hasDepartments": true,
+          "fromYear": 2019,
+          "hideInList": false
+        },
+        {
+          "name": "Compton Community College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": true
+        },
+        {
+          "name": "El Camino College",
+          "hasDepartments": true,
+          "fromYear": 2006,
+          "hideInList": true
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2019
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1950
+        }
+      ],
+      "beginId": 1,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 28,
+      "code": "CONTRA  ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Contra Costa College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2016
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 112,
+      "code": "COPPER  ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Copper Mountain College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2016
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1998
+        }
+      ],
+      "beginId": 49,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 142,
+      "code": "CRC     ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Cosumnes River College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 70,
+      "code": "CRAFTON ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Crafton Hills College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2022
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 2021
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 16,
+      "code": "CUESTA  ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Cuesta College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2022
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 99,
+      "code": "CUYAMACA",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Cuyamaca College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 71,
+      "code": "CYPRESS ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Cypress College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 113,
+      "code": "DAC     ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Quarter",
+      "names": [
+        {
+          "name": "De Anza College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Quarter",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 114,
+      "code": "DIABLO  ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Diablo Valley College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 118,
+      "code": "LAEC    ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "East Los Angeles College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 103,
+      "code": "CAMINO  ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "El Camino College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 2,
+      "code": "EVERGRN ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Evergreen Valley College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2016
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 122,
+      "code": "FEATHER ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Feather River College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2016
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 145,
+      "code": "FOLSOM  ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Folsom Lake College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2003
+        }
+      ],
+      "beginId": 54,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 51,
+      "code": "FOOTHILL",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Quarter",
+      "names": [
+        {
+          "name": "Foothill College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Quarter",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 35,
+      "code": "FRESNO  ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Fresno City College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 134,
+      "code": "FULLRTON",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Fullerton College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 72,
+      "code": "GAVILAN ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Gavilan College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2016
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 43,
+      "code": "GLENDALE",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Glendale Community College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 55,
+      "code": "GWC     ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Golden West College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 106,
+      "code": "GMCC    ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Grossmont College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 123,
+      "code": "HARTNELL",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Hartnell College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 107,
+      "code": "IMPERIAL",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Imperial Valley College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2016
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 124,
+      "code": "IRVINE  ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Irvine Valley College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2019
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 40,
+      "code": "TAHOE   ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Quarter",
+      "names": [
+        {
+          "name": "Lake Tahoe Community College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Quarter",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 77,
+      "code": "LANEY   ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Laney College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2017
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 18,
+      "code": "POSITAS ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Las Positas College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 82,
+      "code": "LASSEN  ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Lassen Community College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 135,
+      "code": "LBCC    ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Long Beach City College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 3,
+      "code": "LACC    ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Los Angeles City College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 31,
+      "code": "LAHC    ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Los Angeles Harbor College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 47,
+      "code": "LAMC    ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Los Angeles Mission College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2016
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 86,
+      "code": "LAPC    ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Los Angeles Pierce College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 130,
+      "code": "LASC    ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Los Angeles Southwest College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 25,
+      "code": "LATT    ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Los Angeles Trade Technical College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 44,
+      "code": "LAVC    ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Los Angeles Valley College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 61,
+      "code": "MEDANOS ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Los Medanos College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 200,
+      "code": "MCC",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Madera Community College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2020
+        }
+      ],
+      "beginId": 71,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 100,
+      "code": "MENDOCIN",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Mendocino College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2016
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 17,
+      "code": "MERCED  ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Merced College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 13,
+      "code": "MERRITT ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Merritt College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2017
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 108,
+      "code": "MIRACSTA",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "MiraCosta College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2016
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 32,
+      "code": "MISSION ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Mission College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 52,
+      "code": "MODESTO ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Modesto Junior College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 133,
+      "code": "MONTEREY",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Monterey Peninsula College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 139,
+      "code": "MOORPARK",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Moorpark College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 149,
+      "code": "MVC     ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Moreno Valley College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2016
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 2009
+        }
+      ],
+      "beginId": 60,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 62,
+      "code": "MTSAC   ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Mount San Antonio College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 53,
+      "code": "MTSJC   ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Mt. San Jacinto College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 73,
+      "code": "NAPA    ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Napa Valley College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 148,
+      "code": "NORCO   ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Norco College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2016
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 2009
+        }
+      ],
+      "beginId": 60,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 48,
+      "code": "OHLONE  ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Ohlone College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 74,
+      "code": "OCC     ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Orange Coast College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 87,
+      "code": "OXNARD  ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Oxnard College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 63,
+      "code": "PALOVRDE",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Palo Verde College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 49,
+      "code": "PASADENA",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Pasadena City College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 56,
+      "code": "PALOMAR ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Palomar College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2018
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 125,
+      "code": "PORTER  ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Porterville College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 36,
+      "code": "KRC",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Kings River College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        },
+        {
+          "name": "Reedley College",
+          "hasDepartments": true,
+          "fromYear": 1998,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2023
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1998
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 64,
+      "code": "RIOHONDO",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Rio Hondo College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2016
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 78,
+      "code": "RCC     ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Riverside City College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2016
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 126,
+      "code": "SCC     ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Sacramento City College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 65,
+      "code": "SADDLBK ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Saddleback College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 131,
+      "code": "SBVC    ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "San Bernardino Valley College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2021
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 54,
+      "code": "SDCC    ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "San Diego City College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2024
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 101,
+      "code": "MESA    ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "San Diego Mesa College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2024
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 45,
+      "code": "MIRAMAR ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "San Diego Miramar College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2024
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 109,
+      "code": "SJDELTA ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "San Joaquin Delta College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2017
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 2016
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 136,
+      "code": "SJCC    ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "San Jose City College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2016
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 14,
+      "code": "RSC",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Rancho Santiago College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        },
+        {
+          "name": "Santa Ana College",
+          "hasDepartments": true,
+          "fromYear": 1997,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2018
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1997
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 92,
+      "code": "SBCC    ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Santa Barbara City College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 137,
+      "code": "SMCC    ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Santa Monica College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2020
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 2016
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 57,
+      "code": "SRC     ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Santa Rosa Junior College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 66,
+      "code": "SANTIAGO",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Santiago Canyon College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 38,
+      "code": "SHASTA  ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Shasta College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 93,
+      "code": "SIERRA  ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Sierra College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 127,
+      "code": "SKYLINE ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Skyline College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 94,
+      "code": "SOLANO  ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Solano Community College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2016
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 138,
+      "code": "SWSTRN  ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Southwestern College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 119,
+      "code": "TAFT    ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Taft College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 95,
+      "code": "VENTURA ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Ventura College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 19,
+      "code": "VVCC    ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Victor Valley College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 67,
+      "code": "WHC     ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "West Hills College Coalinga",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        },
+        {
+          "name": "Coalinga College",
+          "hasDepartments": true,
+          "fromYear": 2024,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2024
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 146,
+      "code": "WHCL    ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "West Hills College Lemoore",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        },
+        {
+          "name": "Lemoore College",
+          "hasDepartments": true,
+          "fromYear": 2024,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2024
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 2006
+        }
+      ],
+      "beginId": 57,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 91,
+      "code": "LAWC    ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "West Los Angeles College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 80,
+      "code": "WVC     ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "West Valley College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 147,
+      "code": "WCC     ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "Woodland Community College",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 2016
+        },
+        {
+          "termType": "Semester",
+          "fromYear": 2008
+        }
+      ],
+      "beginId": 59,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  },
+  {
+    "receivingInstitution": {
+      "id": 5,
+      "code": "MATEO   ",
+      "isCommunityCollege": true,
+      "category": "CCC",
+      "termType": "Semester",
+      "names": [
+        {
+          "name": "College of San Mateo",
+          "hasDepartments": true,
+          "fromYear": 0,
+          "hideInList": false
+        }
+      ],
+      "termTypeAcademicYears": [
+        {
+          "termType": "Semester",
+          "fromYear": 1980
+        }
+      ],
+      "beginId": 31,
+      "endId": null
+    },
+    "receivingYearIds": null,
+    "sendingYearIds": [
+      74,
+      75,
+      76
+    ]
+  }
+]
