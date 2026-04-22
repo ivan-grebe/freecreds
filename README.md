@@ -1,9 +1,29 @@
 # Reverse ASSIST Search
 
 Reverse-lookup tool for California community college articulation agreements.
-Pick a university + course → see every CCC with an articulating course.
+Pick a university + course → see every CCC with an articulating course, plus
+(optionally) whether that course is actually offered next term — with an
+async-online filter for CVC Exchange–listed sections.
 
-Architecture and the full spec are in [PLAN.md](PLAN.md).
+Architecture and full spec in [PLAN.md](PLAN.md). Institution code reference
+in [ASSISTCODES.md](ASSISTCODES.md).
+
+## What it does
+
+1. **Reverse articulation lookup** (core). You pick a CSU/UC and a course.
+   You get every California community college with an articulating course
+   — standalone equivalents and AND-bundles both shown, with companion
+   courses inlined.
+2. **Term-aware offering status** (optional filter). Pick a term from the
+   dropdown (current + next two) and each CCC row shows whether the
+   articulating course is actually on that term's schedule: *async online*,
+   *online sync*, or *unknown*. Data comes from CVC Exchange (search.cvc.edu),
+   which covers online sections across ~112 CCCs.
+3. **Async-only filter**. Checkbox that narrows to CCCs confirmed to offer
+   the course fully asynchronous online in the selected term.
+4. **Schedule link-out**. Every row links to the CCC's own public schedule
+   page, so the user can verify in-person / hybrid / CVC-missing sections
+   themselves. This is the fallback whenever the offering status is "unknown".
 
 ## Quick start
 
@@ -14,33 +34,100 @@ python -m pip install --user httpx fastapi uvicorn pytest respx
 # 2. Verify the ASSIST API is reachable
 python -m src.assist_api
 
-# 3. Ingest CSUF articulations into data/assist.db
-#    (one-time, ~1 minute for all CCCs; add --limit 3 for a quick test)
-python -m src.ingester --university CSUF
+# 3. Ingest articulations into data/assist.db
+#    Option A — one target (~1 minute). See ASSISTCODES.md for codes.
+python -m src.ingester --university CSUFULL
+#    Option B — every CSU + UC + AICCU target (~60+ min, run once).
+#    Survives per-target errors; logs a summary at the end.
+python -m src.ingester --all
+#    Narrow the --all sweep:
+python -m src.ingester --all --categories CSU,UC
 
-# 4. Serve the API + frontend
+# 4. (Optional) Pull online-course offerings from CVC Exchange for the
+#    current + upcoming terms. Safe to re-run — it's idempotent.
+python -m src.cvc_fetcher --terms FA26,SP27
+
+# 5. Serve the API + frontend
 python -m uvicorn src.api:app --reload --port 8000
 # Open http://127.0.0.1:8000/
 
-# 5. Tests
+# 6. Tests
 python -m pytest tests/ -v
 ```
 
-## Implementation notes
+## How the data flows
 
-- **Python 3.8+** (no dependency on 3.10 syntax).
-- **AcademicYears endpoint is gated.** The documented `/AcademicYears/api`
-  endpoint requires an API key we don't have (public access opens late 2026).
-  The client infers the current academic year ID from `sendingYearIds` in
-  `/Agreements/Published/from/{id}` instead.
-- **Alias map** (`CSUF` → `CSUFULL`, etc.) in `src/assist_api.py::CODE_ALIASES`.
-- **AND/OR tree is preserved** in `articulation_course_groups` + `articulation_group_members`.
-  The `reverse_index` table is the denormalized lookup the query endpoint reads.
-- **Series-type** receiving articulations are skipped in MVP (see PLAN.md § Gotchas).
+```
+ASSIST.org ── python -m src.ingester ──▶ data/assist.db (articulations, courses)
+search.cvc.edu ── python -m src.cvc_fetcher ──▶ data/assist.db (class_offerings)
+src/schedule_urls.py ── auto-applied on API startup ──▶ institutions.schedule_url
+                                                           │
+                                                           ▼
+                                            FastAPI (src/api.py) ── frontend/
+```
+
+- **Articulation data** (ASSIST) — refresh once per academic year or when
+  agreements change. Big, slow.
+- **Class offerings** (CVC) — refresh whenever you want fresh offering
+  status. Idempotent: re-running deletes stale rows for the same term
+  before re-inserting.
+- **Schedule URLs** — static map in [src/schedule_urls.py](src/schedule_urls.py),
+  applied to `institutions.schedule_url` on server startup. Fill out missing
+  entries to cover more colleges; see that file's header for the pattern.
 
 ## API
 
 - `GET /api/universities` — list ingested universities.
+- `GET /api/terms` — current + next 2 terms (codes + labels).
 - `GET /api/courses?university=CSUFULL` — list courses at that university.
-- `GET /api/reverse?university=CSUFULL&prefix=MATH&number=150A[&standalone_only=true]`
-  — return every CCC with an articulating course, with AND-bundle companions inlined.
+- `GET /api/reverse?university=CSUFULL&prefix=MATH&number=170A[&term=FA26][&async_only=true][&standalone_only=true]`
+  — every CCC with an articulating course. With `term`, each row includes
+  `offering_status` (`async_online`, `online_sync`, `unknown`) and
+  `schedule_url`. With `async_only`, filters to confirmed async-online rows.
+
+## Implementation notes
+
+- **Python 3.8+** (no 3.10 syntax used).
+- **Institution code reference**: see [ASSISTCODES.md](ASSISTCODES.md). The
+  ingester and API both expect the exact ASSIST code (e.g. `CSUFULL`, not
+  `CSUF`) — no alias layer.
+- **AcademicYears endpoint is gated.** The documented `/AcademicYears/api`
+  endpoint requires an API key we don't have (public access opens late 2026).
+  The client infers the current academic year ID from `sendingYearIds` in
+  `/Agreements/Published/from/{id}` instead.
+- **AND/OR tree preserved** in `articulation_course_groups` +
+  `articulation_group_members`. The `reverse_index` table is the
+  denormalized lookup the query endpoint reads.
+- **CVC endpoint is best-effort.** The search.cvc.edu Quottly frontend has
+  no public API; `src/cvc_fetcher.py` targets a plausible
+  `/courses.json?filter[...]` endpoint and degrades to link-out when CVC
+  doesn't respond with usable JSON. Wiring it up to the real endpoint is a
+  one-pass update once the endpoint + response shape are confirmed in
+  browser devtools — see the module docstring.
+- **Schedule URLs start partial.** Only 4 of 116 CCCs have schedule URLs
+  seeded out of the box (verified in research). Adding the rest is a
+  manual data-entry task; the frontend simply omits the link for CCCs
+  with `schedule_url IS NULL`.
+- **Series-type** receiving articulations are skipped in MVP (see
+  [PLAN.md](PLAN.md) § Gotchas).
+
+## Project layout
+
+```
+src/
+  api.py              FastAPI app (endpoints + static mount)
+  assist_api.py       ASSIST.org HTTP client
+  cvc_college_map.py  CVC display-name → ASSIST code
+  cvc_fetcher.py      CVC Exchange ingester
+  db.py               Schema + helpers (SQLite, no ORM)
+  ingester.py         ASSIST ingestion orchestrator
+  parser.py           ASSIST JSON → normalized articulation records
+  schedule_urls.py    Static CCC → schedule-page URL map
+  terms.py            Canonical term codes + current-term math
+frontend/
+  index.html          Single page
+  script.js           Vanilla JS (no frameworks)
+tests/
+  fixtures/           Sample ASSIST + CVC payloads used in tests
+data/assist.db        SQLite DB (created by ingesters)
+```
