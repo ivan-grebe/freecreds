@@ -4,6 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Reverse ASSIST Search</title>
+  <script>
+    // Apply stored theme before first paint to avoid flash. If no stored
+    // preference, let the media query below decide at render time.
+    (function () {
+      try {
+        var t = localStorage.getItem("theme");
+        if (t === "light" || t === "dark") {
+          document.documentElement.setAttribute("data-theme", t);
+        }
+      } catch (e) {}
+    })();
+  </script>
   <style>
     :root {
       --bg: #fafaf7;
@@ -12,18 +24,108 @@
       --muted: #666;
       --line: #e3e2dd;
       --accent: #2b5f3f;
+      --accent-ink: #fff;
       --standalone: #2b5f3f;
       --bundle: #8a5a17;
       --warn: #7a3b3b;
+      --async: #2b5f3f;
+      --sync: #1e4f7a;
+      --unknown: #888;
+
+      --input-bg: #fff;
+      --input-disabled-bg: #f4f3ef;
+      --hover-bg: #eef4ef;
+      --th-bg: #f2f1ec;
+      --badge-standalone-bg: #e0ecdf;
+      --badge-bundle-bg: #f3e6cd;
+      --badge-async-bg: #dcebdc;
+      --badge-sync-bg: #dde8f3;
+      --badge-unknown-bg: #ececec;
+      --error-bg: #fff3f3;
+      --error-line: #f0c9c9;
+      --shadow: rgba(0,0,0,.08);
     }
+    /* Dark theme: applied either when the OS is in dark mode and the user
+       hasn't explicitly chosen light, or when they've picked dark via the
+       toggle. Explicit choice is stored on <html data-theme="..."> and
+       wins over the media query. */
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #121212;
+        --panel: #1c1c1c;
+        --ink: #e8e8e6;
+        --muted: #9a9a9a;
+        --line: #2e2e2c;
+        --accent: #5ea37a;
+        --accent-ink: #0f1a14;
+        --standalone: #7fbb97;
+        --bundle: #d6a866;
+        --warn: #e09a9a;
+        --async: #7fbb97;
+        --sync: #7fb0d8;
+        --unknown: #808080;
+
+        --input-bg: #242424;
+        --input-disabled-bg: #1a1a1a;
+        --hover-bg: #1f2a22;
+        --th-bg: #181816;
+        --badge-standalone-bg: #1f3328;
+        --badge-bundle-bg: #3a2d1a;
+        --badge-async-bg: #1f3328;
+        --badge-sync-bg: #1a2a3a;
+        --badge-unknown-bg: #2a2a2a;
+        --error-bg: #2e1818;
+        --error-line: #5a2f2f;
+        --shadow: rgba(0,0,0,.45);
+      }
+    }
+    /* Explicit dark override (user clicked). Wins over light media query. */
+    :root[data-theme="dark"] {
+      --bg: #121212;
+      --panel: #1c1c1c;
+      --ink: #e8e8e6;
+      --muted: #9a9a9a;
+      --line: #2e2e2c;
+      --accent: #5ea37a;
+      --accent-ink: #0f1a14;
+      --standalone: #7fbb97;
+      --bundle: #d6a866;
+      --warn: #e09a9a;
+      --async: #7fbb97;
+      --sync: #7fb0d8;
+      --unknown: #808080;
+
+      --input-bg: #242424;
+      --input-disabled-bg: #1a1a1a;
+      --hover-bg: #1f2a22;
+      --th-bg: #181816;
+      --badge-standalone-bg: #1f3328;
+      --badge-bundle-bg: #3a2d1a;
+      --badge-async-bg: #1f3328;
+      --badge-sync-bg: #1a2a3a;
+      --badge-unknown-bg: #2a2a2a;
+      --error-bg: #2e1818;
+      --error-line: #5a2f2f;
+      --shadow: rgba(0,0,0,.45);
+    }
+
     * { box-sizing: border-box; }
+    html, body { background: var(--bg); color: var(--ink); }
     body {
       font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      margin: 0; padding: 2.5rem 1rem; background: var(--bg); color: var(--ink);
+      margin: 0; padding: 2.5rem 1rem;
     }
     main { max-width: 960px; margin: 0 auto; }
+    .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
     h1 { margin: 0 0 .2rem; font-weight: 600; font-size: 1.55rem; }
     .lede { color: var(--muted); margin: 0 0 2rem; }
+    .theme-toggle {
+      padding: .4rem .75rem; background: transparent; color: var(--muted);
+      border: 1px solid var(--line); border-radius: 6px;
+      font: inherit; font-size: 13px; font-weight: 500;
+      cursor: pointer; white-space: nowrap;
+    }
+    .theme-toggle:hover { color: var(--ink); border-color: var(--muted); }
     .controls {
       display: flex; gap: .75rem; flex-wrap: wrap; align-items: end;
       background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
@@ -33,56 +135,70 @@
     .field label { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
     select, input {
       padding: .55rem .7rem; border: 1px solid var(--line); border-radius: 6px;
-      font: inherit; background: #fff;
+      font: inherit; background: var(--input-bg); color: var(--ink);
     }
     .field.compact { min-width: 7rem; flex: 0; }
     .combo { position: relative; }
-    .combo input[disabled] { background: #f4f3ef; color: var(--muted); cursor: not-allowed; }
+    .combo input[disabled] { background: var(--input-disabled-bg); color: var(--muted); cursor: not-allowed; }
     .combo-list {
       position: absolute; top: calc(100% + 4px); left: 0; right: 0;
-      background: #fff; border: 1px solid var(--line); border-radius: 6px;
-      max-height: calc(5 * 2.25rem + 8px); /* ~5 rows visible, rest scrolls */
+      background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+      max-height: calc(5 * 2.25rem + 8px);
       overflow-y: auto;
       z-index: 10; margin: 0; padding: 4px 0; list-style: none;
-      box-shadow: 0 4px 14px rgba(0,0,0,.08);
+      box-shadow: 0 4px 14px var(--shadow);
       display: none;
     }
     .combo-list.open { display: block; }
     .combo-item {
       padding: .45rem .7rem; cursor: pointer; font-size: 14px;
       line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      color: var(--ink);
     }
-    .combo-item.active, .combo-item:hover { background: #eef4ef; }
+    .combo-item.active, .combo-item:hover { background: var(--hover-bg); }
     .combo-item .code { font-weight: 600; margin-right: .4rem; }
     .combo-item .title { color: var(--muted); }
     .combo-empty { padding: .5rem .7rem; color: var(--muted); font-size: 13px; font-style: italic; }
     .combo-count { padding: .25rem .7rem; font-size: 11px; color: var(--muted); text-transform: uppercase;
                    letter-spacing: .05em; border-bottom: 1px solid var(--line); }
     button {
-      padding: .6rem 1.2rem; background: var(--accent); color: #fff;
+      padding: .6rem 1.2rem; background: var(--accent); color: var(--accent-ink);
       border: 0; border-radius: 6px; font: inherit; font-weight: 600; cursor: pointer;
     }
     button:disabled { opacity: .5; cursor: not-allowed; }
-    .filter-row { display: flex; gap: 1rem; font-size: 13px; color: var(--muted); }
+    .filter-row { display: flex; gap: 1rem; font-size: 13px; color: var(--muted); flex-wrap: wrap; align-items: center; }
+    .filter-row label { display: inline-flex; gap: .35rem; align-items: center; }
+    .filter-row input[type="checkbox"]:disabled + *,
+    .filter-row label:has(input[type="checkbox"]:disabled) { opacity: .45; cursor: not-allowed; }
     .meta { color: var(--muted); font-size: 13px; margin-bottom: .75rem; }
     .result-header { display: flex; justify-content: space-between; align-items: baseline; margin: 1.5rem 0 .5rem; }
     .result-header h2 { margin: 0; font-size: 1.1rem; font-weight: 600; }
     table { width: 100%; border-collapse: collapse; background: var(--panel);
             border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
     th, td { padding: .65rem .8rem; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
-    th { background: #f2f1ec; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; }
+    th { background: var(--th-bg); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; }
     tr:last-child td { border-bottom: 0; }
     .badge { display: inline-block; padding: 2px 8px; border-radius: 10px;
-             font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
-    .badge.standalone { background: #e0ecdf; color: var(--standalone); }
-    .badge.bundle { background: #f3e6cd; color: var(--bundle); }
+             font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em;
+             white-space: nowrap; line-height: 1.35; }
+    .badge.standalone { background: var(--badge-standalone-bg); color: var(--standalone); }
+    .badge.bundle { background: var(--badge-bundle-bg); color: var(--bundle); }
+    .badge.async-online { background: var(--badge-async-bg); color: var(--async); }
+    .badge.online-sync { background: var(--badge-sync-bg); color: var(--sync); }
+    .badge.unknown { background: var(--badge-unknown-bg); color: var(--unknown); }
+    .schedule-link { font-size: 13px; color: var(--accent); text-decoration: none; white-space: nowrap; }
+    .schedule-link:hover { text-decoration: underline; }
+    .schedule-muted { font-size: 13px; color: var(--muted); font-style: italic; }
     .companion-list { margin: .3rem 0 0; padding-left: 1rem; font-size: 13px; color: var(--muted); }
+    .source-note { margin-top: .3rem; font-size: 11px; color: var(--muted);
+                   text-transform: uppercase; letter-spacing: .04em; }
+    .source-note.stale { color: var(--bundle); }
     details { margin-top: 1.5rem; background: var(--panel); border: 1px solid var(--line);
               border-radius: 8px; padding: .75rem 1rem; }
     details summary { cursor: pointer; color: var(--muted); font-size: 14px; }
     .no-art-list { margin-top: .5rem; font-size: 13px; }
     .no-art-item { color: var(--muted); padding: .2rem 0; }
-    .error { padding: 1rem; background: #fff3f3; border: 1px solid #f0c9c9; color: var(--warn);
+    .error { padding: 1rem; background: var(--error-bg); border: 1px solid var(--error-line); color: var(--warn);
              border-radius: 6px; }
     .suggestion-list { margin: .5rem 0 0; font-size: 13px; }
     footer { margin-top: 3rem; color: var(--muted); font-size: 12px; text-align: center; }
@@ -91,13 +207,22 @@
 </head>
 <body>
 <main>
-  <h1>Reverse ASSIST Search</h1>
-  <p class="lede">Pick a university and a course. See every California community college that articulates to it.</p>
+  <div class="page-head">
+    <div>
+      <h1>Reverse ASSIST Search</h1>
+      <p class="lede">Pick a university and a course. See every California community college that articulates to it.</p>
+    </div>
+    <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle dark mode">Theme</button>
+  </div>
 
   <form id="search-form" class="controls" autocomplete="off">
-    <div class="field">
-      <label for="uni">University</label>
-      <select id="uni" required></select>
+    <div class="field combo">
+      <label for="uni-input">University</label>
+      <input type="text" id="uni-input" placeholder="Loading universities…"
+             autocomplete="off" spellcheck="false" role="combobox"
+             aria-autocomplete="list" aria-expanded="false" aria-controls="uni-list"
+             disabled required>
+      <ul id="uni-list" class="combo-list" role="listbox"></ul>
     </div>
     <div class="field combo">
       <label for="course-input">Course</label>
@@ -114,6 +239,13 @@
   </form>
   <div class="filter-row">
     <label><input type="checkbox" id="standalone-only"> Standalone equivalents only (hide AND bundles)</label>
+    <label>
+      Check offerings for:
+      <select id="term-filter">
+        <option value="">— skip (articulations only) —</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="async-only" disabled> Async online only</label>
   </div>
 
   <div id="output"></div>

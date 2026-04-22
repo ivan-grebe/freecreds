@@ -1,7 +1,10 @@
-const uniSel = document.getElementById("uni");
+const uniInput = document.getElementById("uni-input");
+const uniList = document.getElementById("uni-list");
 const courseInput = document.getElementById("course-input");
 const courseList = document.getElementById("course-list");
 const standaloneCheck = document.getElementById("standalone-only");
+const termSel = document.getElementById("term-filter");
+const asyncCheck = document.getElementById("async-only");
 const form = document.getElementById("search-form");
 const output = document.getElementById("output");
 
@@ -21,188 +24,245 @@ function el(tag, attrs = {}, children = []) {
 
 // --- University dropdown ---
 
+async function loadTerms() {
+  try {
+    const res = await fetch("/api/terms");
+    if (!res.ok) return;
+    const { terms } = await res.json();
+    for (const t of terms) {
+      termSel.appendChild(el("option", { value: t.code }, t.label));
+    }
+  } catch (e) {
+    // Non-fatal: the skip option stays as the only choice.
+  }
+}
+
+// Async-only is only meaningful when the user has opted into offering checks.
+// Start disabled; enable once a term is picked. Clearing the term unchecks + disables.
+function syncAsyncToggle() {
+  const hasTerm = !!termSel.value;
+  asyncCheck.disabled = !hasTerm;
+  if (!hasTerm) asyncCheck.checked = false;
+}
+termSel.addEventListener("change", syncAsyncToggle);
+
+// --- Generic searchable combobox factory ---
+// Used for both the university input and the course input. Caller supplies
+// the matcher, display text, per-item render content, and an optional
+// onSelect callback (for the university combo that chain-loads courses).
+
+function createCombo({ input, list, matches, renderItem, displayText, exactShortcuts, onSelect }) {
+  const state = { items: [], filtered: [], activeIndex: -1, selected: null };
+
+  function setOpen(v) {
+    list.classList.toggle("open", v);
+    input.setAttribute("aria-expanded", v ? "true" : "false");
+  }
+  function render() {
+    list.innerHTML = "";
+    if (!state.filtered.length) {
+      list.appendChild(el("li", { class: "combo-empty" }, "No matches"));
+      return;
+    }
+    if (state.filtered.length > 5) {
+      list.appendChild(el("li", { class: "combo-count" },
+        `${state.filtered.length} matches — scroll for more`));
+    }
+    state.filtered.forEach((item, i) => {
+      const li = el("li", {
+        class: "combo-item" + (i === state.activeIndex ? " active" : ""),
+        role: "option",
+        "data-index": String(i),
+      });
+      const parts = renderItem(item);
+      for (const p of [].concat(parts)) {
+        if (p instanceof Node) li.appendChild(p);
+        else if (p != null) li.appendChild(document.createTextNode(String(p)));
+      }
+      li.addEventListener("mousedown", (e) => {
+        // mousedown (not click) so it fires before input blur hides the list
+        e.preventDefault();
+        select(i);
+      });
+      list.appendChild(li);
+    });
+    if (state.activeIndex >= 0) {
+      const node = list.querySelector(`[data-index="${state.activeIndex}"]`);
+      if (node) node.scrollIntoView({ block: "nearest" });
+    }
+  }
+  function updateFiltered() {
+    const q = input.value.trim().toLowerCase();
+    const tokens = q ? q.split(/\s+/) : [];
+    state.filtered = state.items.filter(it => matches(it, tokens));
+    if (!state.filtered.length) state.activeIndex = -1;
+    else if (state.activeIndex >= state.filtered.length) state.activeIndex = 0;
+    else if (state.activeIndex < 0) state.activeIndex = 0;
+    render();
+  }
+  function select(i) {
+    const item = state.filtered[i];
+    if (!item) return;
+    state.selected = item;
+    input.value = displayText(item);
+    setOpen(false);
+    if (onSelect) onSelect(item);
+  }
+  function openOnFocus() {
+    if (input.disabled) return;
+    updateFiltered();
+    setOpen(true);
+  }
+
+  input.addEventListener("input", () => {
+    state.selected = null;
+    updateFiltered();
+    setOpen(true);
+  });
+  input.addEventListener("focus", openOnFocus);
+  input.addEventListener("click", openOnFocus);
+  document.addEventListener("mousedown", (e) => {
+    if (!input.contains(e.target) && !list.contains(e.target)) setOpen(false);
+  });
+  input.addEventListener("keydown", (e) => {
+    if (!list.classList.contains("open")) {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        openOnFocus();
+        e.preventDefault();
+      }
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      if (state.filtered.length) {
+        state.activeIndex = (state.activeIndex + 1) % state.filtered.length;
+        render();
+      }
+      e.preventDefault();
+    } else if (e.key === "ArrowUp") {
+      if (state.filtered.length) {
+        state.activeIndex = (state.activeIndex - 1 + state.filtered.length) % state.filtered.length;
+        render();
+      }
+      e.preventDefault();
+    } else if (e.key === "Enter") {
+      if (state.activeIndex >= 0) {
+        select(state.activeIndex);
+        e.preventDefault();
+      }
+    } else if (e.key === "Escape") {
+      setOpen(false);
+      e.preventDefault();
+    }
+  });
+
+  return {
+    setItems(items) {
+      state.items = items;
+      state.filtered = items.slice();
+      state.activeIndex = -1;
+      state.selected = null;
+      input.value = "";
+    },
+    getSelected() { return state.selected; },
+    setEnabled(enabled, placeholder) {
+      input.disabled = !enabled;
+      if (placeholder !== undefined) input.placeholder = placeholder;
+    },
+    reset() {
+      state.items = [];
+      state.filtered = [];
+      state.activeIndex = -1;
+      state.selected = null;
+      input.value = "";
+      setOpen(false);
+    },
+    // If the user typed an exact display value (or one of the shortcuts)
+    // and hit Enter without clicking a dropdown item, promote it to the
+    // current selection so the form handler can proceed.
+    tryPromoteTypedSelection() {
+      if (state.selected) return state.selected;
+      const typed = input.value.trim().toLowerCase();
+      if (!typed) return null;
+      const shortcuts = exactShortcuts || (() => []);
+      const hit = state.items.find(it => {
+        if (displayText(it).toLowerCase() === typed) return true;
+        return (shortcuts(it) || []).some(s => s.toLowerCase() === typed);
+      });
+      if (hit) {
+        state.selected = hit;
+        return hit;
+      }
+      return null;
+    },
+  };
+}
+
+const uniCombo = createCombo({
+  input: uniInput,
+  list: uniList,
+  matches: (u, tokens) => {
+    if (!tokens.length) return true;
+    const hay = `${u.name} ${u.code.trim()} ${u.category || ""}`.toLowerCase();
+    return tokens.every(t => hay.includes(t));
+  },
+  renderItem: (u) => [
+    el("span", { class: "code" }, u.code.trim()),
+    el("span", { class: "title" }, u.name),
+  ],
+  displayText: (u) => `${u.name} (${u.code.trim()})`,
+  exactShortcuts: (u) => [u.code.trim(), u.name],
+  onSelect: (u) => loadCoursesForUniversity(u.code.trim()),
+});
+
+const courseCombo = createCombo({
+  input: courseInput,
+  list: courseList,
+  matches: (c, tokens) => {
+    if (!tokens.length) return true;
+    const hay = `${c.prefix} ${c.number} ${c.title}`.toLowerCase();
+    return tokens.every(t => hay.includes(t));
+  },
+  renderItem: (c) => [
+    el("span", { class: "code" }, `${c.prefix} ${c.number}`),
+    el("span", { class: "title" }, c.title),
+  ],
+  displayText: (c) => `${c.prefix} ${c.number} — ${c.title}`,
+  exactShortcuts: (c) => [`${c.prefix} ${c.number}`, `${c.prefix}${c.number}`],
+});
+
 async function loadUniversities() {
+  uniCombo.setEnabled(false, "Loading universities…");
   const res = await fetch("/api/universities");
   if (!res.ok) {
     output.innerHTML = `<div class="error">Failed to load universities. Has the ingester been run?</div>`;
     return;
   }
   const { universities } = await res.json();
-  uniSel.innerHTML = "";
   if (!universities.length) {
-    uniSel.appendChild(el("option", { value: "" }, "(no data — run ingester)"));
+    uniCombo.setEnabled(false, "(no data — run ingester)");
     return;
   }
-  uniSel.appendChild(el("option", { value: "" }, "— choose —"));
-  for (const u of universities) {
-    uniSel.appendChild(el("option", { value: u.code.trim() }, `${u.name} (${u.code.trim()})`));
-  }
+  uniCombo.setItems(universities);
+  uniCombo.setEnabled(true, `Search ${universities.length} universities`);
 }
 
-// --- Course combobox (searchable dropdown) ---
-
-const combo = {
-  courses: [],       // all courses for the selected university
-  filtered: [],      // current filtered list
-  activeIndex: -1,   // highlighted item in filtered
-  selected: null,    // {prefix, number, title, ...}
-};
-
-function displayForCourse(c) {
-  return `${c.prefix} ${c.number} — ${c.title}`;
-}
-
-// Case-insensitive substring match against "PREFIX NUMBER TITLE".
-// Each whitespace-separated query token must appear somewhere in the haystack.
-function matchesQuery(course, tokens) {
-  if (!tokens.length) return true;
-  const hay = `${course.prefix} ${course.number} ${course.title}`.toLowerCase();
-  return tokens.every(t => hay.includes(t));
-}
-
-function setComboOpen(open) {
-  courseList.classList.toggle("open", open);
-  courseInput.setAttribute("aria-expanded", open ? "true" : "false");
-}
-
-function renderCombo() {
-  courseList.innerHTML = "";
-  if (!combo.filtered.length) {
-    courseList.appendChild(el("li", { class: "combo-empty" }, "No matches"));
-    return;
-  }
-  // Small count header when filtered set is larger than what's visually in the first 5
-  if (combo.filtered.length > 5) {
-    courseList.appendChild(el("li", { class: "combo-count" },
-      `${combo.filtered.length} matches — scroll for more`));
-  }
-  combo.filtered.forEach((c, i) => {
-    const item = el("li", {
-      class: "combo-item" + (i === combo.activeIndex ? " active" : ""),
-      role: "option",
-      "data-index": String(i),
-    }, [
-      el("span", { class: "code" }, `${c.prefix} ${c.number}`),
-      el("span", { class: "title" }, c.title),
-    ]);
-    item.addEventListener("mousedown", (e) => {
-      // mousedown (not click) so it fires before input blur hides the list
-      e.preventDefault();
-      selectCourse(i);
-    });
-    courseList.appendChild(item);
-  });
-  // Scroll active into view
-  if (combo.activeIndex >= 0) {
-    const node = courseList.querySelector(`[data-index="${combo.activeIndex}"]`);
-    if (node) node.scrollIntoView({ block: "nearest" });
-  }
-}
-
-function updateFiltered() {
-  const q = courseInput.value.trim().toLowerCase();
-  const tokens = q ? q.split(/\s+/) : [];
-  combo.filtered = combo.courses.filter(c => matchesQuery(c, tokens));
-  // Keep active highlight valid
-  if (combo.filtered.length === 0) combo.activeIndex = -1;
-  else if (combo.activeIndex >= combo.filtered.length) combo.activeIndex = 0;
-  else if (combo.activeIndex < 0) combo.activeIndex = 0;
-  renderCombo();
-}
-
-function selectCourse(index) {
-  const c = combo.filtered[index];
-  if (!c) return;
-  combo.selected = c;
-  courseInput.value = displayForCourse(c);
-  setComboOpen(false);
-}
-
-function resetCourseCombo(enabled, placeholder) {
-  combo.courses = [];
-  combo.filtered = [];
-  combo.activeIndex = -1;
-  combo.selected = null;
-  courseInput.value = "";
-  courseInput.disabled = !enabled;
-  courseInput.placeholder = placeholder;
-  setComboOpen(false);
-}
-
-async function loadCoursesForUniversity() {
-  const code = uniSel.value;
+async function loadCoursesForUniversity(code) {
   if (!code) {
-    resetCourseCombo(false, "Pick a university first");
+    courseCombo.reset();
+    courseCombo.setEnabled(false, "Pick a university first");
     return;
   }
-  resetCourseCombo(false, "Loading courses…");
+  courseCombo.reset();
+  courseCombo.setEnabled(false, "Loading courses…");
   const res = await fetch(`/api/courses?university=${encodeURIComponent(code)}`);
   if (!res.ok) {
-    resetCourseCombo(false, "Failed to load courses");
+    courseCombo.setEnabled(false, "Failed to load courses");
     return;
   }
   const { courses } = await res.json();
-  combo.courses = courses;
-  courseInput.disabled = false;
-  courseInput.placeholder = `Search ${courses.length} courses (e.g. "math 150")`;
+  courseCombo.setItems(courses);
+  courseCombo.setEnabled(true, `Search ${courses.length} courses (e.g. "math 150")`);
 }
-
-// Input events: typing updates the filter and opens the dropdown.
-courseInput.addEventListener("input", () => {
-  // Typing invalidates any prior selection
-  combo.selected = null;
-  updateFiltered();
-  setComboOpen(true);
-});
-
-// Focus/click opens the dropdown (even when input is empty) so users can browse.
-function openOnFocus() {
-  if (courseInput.disabled) return;
-  updateFiltered();
-  setComboOpen(true);
-}
-courseInput.addEventListener("focus", openOnFocus);
-courseInput.addEventListener("click", openOnFocus);
-
-// Close on outside click.
-document.addEventListener("mousedown", (e) => {
-  if (!courseInput.contains(e.target) && !courseList.contains(e.target)) {
-    setComboOpen(false);
-  }
-});
-
-// Keyboard nav: Up/Down/Enter/Escape.
-courseInput.addEventListener("keydown", (e) => {
-  if (!courseList.classList.contains("open")) {
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      openOnFocus();
-      e.preventDefault();
-      return;
-    }
-    return;
-  }
-  if (e.key === "ArrowDown") {
-    if (combo.filtered.length) {
-      combo.activeIndex = (combo.activeIndex + 1) % combo.filtered.length;
-      renderCombo();
-    }
-    e.preventDefault();
-  } else if (e.key === "ArrowUp") {
-    if (combo.filtered.length) {
-      combo.activeIndex = (combo.activeIndex - 1 + combo.filtered.length) % combo.filtered.length;
-      renderCombo();
-    }
-    e.preventDefault();
-  } else if (e.key === "Enter") {
-    if (combo.activeIndex >= 0) {
-      selectCourse(combo.activeIndex);
-      e.preventDefault();
-    }
-  } else if (e.key === "Escape") {
-    setComboOpen(false);
-    e.preventDefault();
-  }
-});
 
 // --- Results rendering (unchanged) ---
 
@@ -211,32 +271,126 @@ function renderCourse(c) {
   return `${c.prefix} ${c.number} — ${c.title} (${units} units)`;
 }
 
+// Returns { text, title } — `text` is shown under the row, `title` is the
+// tooltip (full list of major names when truncated).
+//
+// AllDepartments is the university's default articulation — it applies
+// to any major that hasn't overridden it, so attaching major names on
+// top of it is redundant. We only call out major names when the path is
+// *only* major-specific (no dept. summary backing it).
+function renderSourceLabel(sources) {
+  if (!sources || !sources.length) return { text: "", title: "" };
+  if (sources.includes("AllDepartments")) return { text: "", title: "" };
+
+  const specificMajors = sources
+    .filter(s => s && s.startsWith("Major: "))
+    .map(s => s.slice("Major: ".length));
+
+  if (specificMajors.length) {
+    const shown = specificMajors.slice(0, 3).join(", ");
+    const extra = specificMajors.length > 3 ? `, +${specificMajors.length - 3} more` : "";
+    return { text: "Major-specific: " + shown + extra, title: specificMajors.join("\n") };
+  }
+  if (sources.includes("AllMajors")) return { text: "Major-specific", title: "" };
+  return { text: "", title: "" };
+}
+
+// Agreement-year caption shown under the community-college code.
+// Rendered in a warmer color when this row's year is older than the
+// newest year in the result set (subtle stale-data flag).
+function renderYearNote(row, maxYearId) {
+  if (!row.academic_year) return null;
+  const stale = row.academic_year_id && maxYearId && row.academic_year_id < maxYearId;
+  return el("div", { class: "source-note" + (stale ? " stale" : "") },
+           `Agreement Year: ${row.academic_year}`);
+}
+
+// Source caption shown under the articulating course. Only surfaces when
+// the path is major-specific (no AllDepartments backing); default/generic
+// paths get no caption at all.
+function renderSourceNote(sources) {
+  const { text, title } = renderSourceLabel(sources);
+  if (!text) return null;
+  const note = el("div", { class: "source-note" }, text);
+  if (title) note.setAttribute("title", title);
+  return note;
+}
+
+function renderOfferingBadge(status) {
+  if (status === "async_online") return el("span", { class: "badge async-online" }, "async online");
+  if (status === "online_sync") return el("span", { class: "badge online-sync" }, "online sync");
+  return el("span", { class: "badge unknown" }, "unknown");
+}
+
+function renderScheduleCell(r, termLabel) {
+  if (!r.schedule_url) {
+    return el("span", { class: "schedule-muted" }, "—");
+  }
+  const label = termLabel ? `Check ${termLabel}` : "Check schedule";
+  return el("a", {
+    class: "schedule-link",
+    href: r.schedule_url,
+    target: "_blank",
+    rel: "noopener",
+  }, label);
+}
+
 function renderResults(data) {
   output.innerHTML = "";
   const q = data.query;
-  output.appendChild(el("div", { class: "meta" },
-    `${q.university.name}: ${renderCourse(q.course)}`));
+  const termLabel = q.term ? q.term.label : null;
+  const headerMeta = termLabel ? `${q.university.name}: ${renderCourse(q.course)} — ${termLabel}`
+                                : `${q.university.name}: ${renderCourse(q.course)}`;
+  output.appendChild(el("div", { class: "meta" }, headerMeta));
 
-  const header = el("div", { class: "result-header" }, [
-    el("h2", {}, `Articulating community colleges (${data.results.length})`),
-  ]);
-  output.appendChild(header);
+  const n = data.results.length;
+  let headline;
+  if (q.async_only) {
+    headline = `Articulating colleges offering this course async online in ${termLabel} (${n})`;
+  } else if (termLabel) {
+    headline = `Articulating colleges offering this course in ${termLabel} (${n})`;
+  } else {
+    headline = `Articulating community colleges (${n})`;
+  }
+  output.appendChild(el("div", { class: "result-header" }, [el("h2", {}, headline)]));
+
+  const showOfferingCols = !!q.term;
 
   if (!data.results.length) {
-    output.appendChild(el("div", { class: "meta" }, "No articulations found for this course."));
+    let msg;
+    if (q.async_only) {
+      msg = `No colleges confirmed to offer this course as async online in ${termLabel}.`;
+    } else if (termLabel) {
+      msg = `No colleges confirmed to offer this course in ${termLabel}. Pick "skip" above to see the full articulation list, or click a schedule link to check a specific college.`;
+    } else {
+      msg = "No articulations found for this course.";
+    }
+    output.appendChild(el("div", { class: "meta" }, msg));
   } else {
+    const maxYearId = data.results.reduce(
+      (m, r) => Math.max(m, r.academic_year_id || 0), 0
+    );
     const table = el("table");
-    table.appendChild(el("thead", {}, el("tr", {}, [
+    const headerCells = [
       el("th", {}, "Community College"),
       el("th", {}, "Articulating Course"),
       el("th", {}, "Type"),
-    ])));
+    ];
+    if (showOfferingCols) {
+      headerCells.push(el("th", {}, "Offered"));
+      headerCells.push(el("th", {}, "Schedule"));
+    }
+    table.appendChild(el("thead", {}, el("tr", {}, headerCells)));
     const tbody = el("tbody");
     for (const r of data.results) {
-      const cc = el("td", {}, [
+      const ccChildren = [
         r.cc_name,
         el("div", { class: "meta" }, r.cc_code),
-      ]);
+      ];
+      const yearNote = renderYearNote(r, maxYearId);
+      if (yearNote) ccChildren.push(yearNote);
+      const cc = el("td", {}, ccChildren);
+
       const courseCell = el("td");
       courseCell.appendChild(document.createTextNode(renderCourse(r.cc_course)));
       if (!r.is_standalone && r.companion_courses.length) {
@@ -247,11 +401,20 @@ function renderResults(data) {
         }
         courseCell.appendChild(list);
       }
+      const sourceNote = renderSourceNote(r.sources || []);
+      if (sourceNote) courseCell.appendChild(sourceNote);
+
       const badge = r.is_standalone
         ? el("span", { class: "badge standalone" }, "standalone")
         : el("span", { class: "badge bundle" }, "AND bundle");
       const type = el("td", {}, badge);
-      tbody.appendChild(el("tr", {}, [cc, courseCell, type]));
+
+      const cells = [cc, courseCell, type];
+      if (showOfferingCols) {
+        cells.push(el("td", {}, renderOfferingBadge(r.offering_status)));
+        cells.push(el("td", {}, renderScheduleCell(r, termLabel)));
+      }
+      tbody.appendChild(el("tr", {}, cells));
     }
     table.appendChild(tbody);
     output.appendChild(table);
@@ -270,27 +433,23 @@ function renderResults(data) {
 }
 
 async function runSearch() {
-  const code = uniSel.value;
-  if (!code) return;
-
-  // If the typed text exactly matches one course, auto-select it so users
-  // can type + Enter without a mouse click.
-  if (!combo.selected && courseInput.value.trim()) {
-    const typed = courseInput.value.trim().toLowerCase();
-    const exact = combo.courses.find(c =>
-      displayForCourse(c).toLowerCase() === typed
-      || `${c.prefix} ${c.number}`.toLowerCase() === typed
-    );
-    if (exact) combo.selected = exact;
+  const uni = uniCombo.tryPromoteTypedSelection();
+  if (!uni) {
+    output.innerHTML = `<div class="error">Pick a university from the list first.</div>`;
+    return;
   }
+  const code = uni.code.trim();
 
-  if (!combo.selected) {
+  const course = courseCombo.tryPromoteTypedSelection();
+  if (!course) {
     output.innerHTML = `<div class="error">Pick a course from the list first.</div>`;
     return;
   }
-  const c = combo.selected;
-  const params = new URLSearchParams({ university: code, prefix: c.prefix, number: c.number });
+
+  const params = new URLSearchParams({ university: code, prefix: course.prefix, number: course.number });
   if (standaloneCheck.checked) params.set("standalone_only", "true");
+  if (termSel.value) params.set("term", termSel.value);
+  if (asyncCheck.checked) params.set("async_only", "true");
   output.innerHTML = `<div class="meta">Searching…</div>`;
 
   const res = await fetch(`/api/reverse?${params.toString()}`);
@@ -313,7 +472,39 @@ async function runSearch() {
   renderResults(data);
 }
 
-uniSel.addEventListener("change", loadCoursesForUniversity);
 form.addEventListener("submit", (e) => { e.preventDefault(); runSearch(); });
 
 loadUniversities();
+loadTerms();
+
+// --- Theme toggle ---
+// Two-state toggle. Initial state follows the OS via prefers-color-scheme
+// (no data-theme set). First click flips and locks to the opposite of the
+// current effective theme; subsequent clicks swap between light/dark.
+(function () {
+  const btn = document.getElementById("theme-toggle");
+  if (!btn) return;
+  const root = document.documentElement;
+  const media = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+
+  function effectiveTheme() {
+    const attr = root.getAttribute("data-theme");
+    if (attr === "light" || attr === "dark") return attr;
+    return media && media.matches ? "dark" : "light";
+  }
+  function refreshLabel() {
+    btn.textContent = effectiveTheme() === "dark" ? "Light mode" : "Dark mode";
+  }
+  btn.addEventListener("click", () => {
+    const next = effectiveTheme() === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    try { localStorage.setItem("theme", next); } catch (e) {}
+    refreshLabel();
+  });
+  if (media && media.addEventListener) {
+    media.addEventListener("change", () => {
+      if (!root.hasAttribute("data-theme")) refreshLabel();
+    });
+  }
+  refreshLabel();
+})();
