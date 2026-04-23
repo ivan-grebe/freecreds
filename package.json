@@ -1,0 +1,21 @@
+{
+  "name": "freecreds-cloudflare",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "cf:dev": "wrangler pages dev frontend --d1 DB",
+    "cf:deploy": "wrangler pages deploy frontend --project-name freecreds",
+    "cf:deploy:refresh": "wrangler deploy --config wrangler.refresh.toml",
+    "cf:typecheck": "tsc --noEmit",
+    "cf:db:create": "wrangler d1 create freecreds-db",
+    "cf:db:schema": "wrangler d1 execute freecreds-db --remote --file migrations/0001_schema.sql --yes",
+    "cf:db:dump": "node scripts/dump-sqlite-for-d1.mjs data/assist.db d1_import.sql",
+    "cf:db:import": "wrangler d1 execute freecreds-db --remote --file d1_import.sql --yes"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260422.1",
+    "typescript": "^6.0.3",
+    "wrangler": "^4.84.1"
+  }
+}

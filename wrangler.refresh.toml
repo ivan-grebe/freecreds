@@ -1,0 +1,17 @@
+name = "freecreds-refresh"
+main = "workers/refresh.ts"
+compatibility_date = "2026-04-22"
+
+# Cloudflare cron expressions are UTC.
+# - CVC: roughly twice monthly.
+# - ASSIST: quarterly on the first day of Jan/Apr/Jul/Oct.
+[triggers]
+crons = [
+  "0 9 1,15 * *",
+  "0 10 1 1,4,7,10 *"
+]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "freecreds-db"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"

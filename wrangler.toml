@@ -1,0 +1,9 @@
+name = "freecreds"
+compatibility_date = "2026-04-22"
+pages_build_output_dir = "frontend"
+
+# Run `npm run cf:db:create` and paste the returned ID here before deploying.
+[[d1_databases]]
+binding = "DB"
+database_name = "freecreds-db"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"

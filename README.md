@@ -53,6 +53,107 @@ python -m uvicorn src.api:app --reload --port 8000
 python -m pytest tests/ -v
 ```
 
+## Cloudflare deploy
+
+The Cloudflare runtime uses Pages Functions in `functions/` for the API,
+Cloudflare D1 for SQLite-compatible storage, and `workers/refresh.ts` for
+scheduled refresh triggers. The long ingest jobs still run in GitHub Actions
+because full ASSIST/CVC refreshes take longer than a cron Worker request should.
+
+### 1. Install JavaScript tooling
+
+```bash
+npm install
+npm run cf:typecheck
+```
+
+### 2. Create and wire the D1 database
+
+```bash
+npm run cf:db:create
+```
+
+Copy the returned `database_id` into both `wrangler.toml` and
+`wrangler.refresh.toml`, replacing `REPLACE_WITH_D1_DATABASE_ID`.
+
+Apply the schema:
+
+```bash
+npm run cf:db:schema
+```
+
+### 3. Seed D1 from your local SQLite DB
+
+Build `data/assist.db` locally first:
+
+```bash
+python -m src.ingester --all
+python -m src.cvc_fetcher
+```
+
+Then export the SQLite rows and import them to D1:
+
+```bash
+npm run cf:db:dump
+npm run cf:db:import
+```
+
+If `cf:db:dump` says `sqlite3` is missing, install the SQLite CLI and rerun it.
+
+### 4. Deploy the Pages site
+
+```bash
+npm run cf:deploy
+```
+
+Cloudflare serves `frontend/` and automatically maps:
+
+- `functions/api/universities.ts` -> `/api/universities`
+- `functions/api/terms.ts` -> `/api/terms`
+- `functions/api/courses.ts` -> `/api/courses`
+- `functions/api/reverse.ts` -> `/api/reverse`
+
+### 5. Configure automated refreshes
+
+Create a GitHub token that can create repository dispatch events for this
+repository. For a private repo, a fine-grained token should be scoped to this
+repo with `Contents: Read and write`. Add these Cloudflare Worker secrets:
+
+```bash
+npx wrangler secret put GITHUB_TOKEN --config wrangler.refresh.toml
+npx wrangler secret put GITHUB_OWNER --config wrangler.refresh.toml
+npx wrangler secret put GITHUB_REPO --config wrangler.refresh.toml
+npx wrangler secret put MANUAL_TRIGGER_TOKEN --config wrangler.refresh.toml
+```
+
+Add these GitHub Actions secrets:
+
+- `CLOUDFLARE_API_TOKEN` with D1 edit access.
+- `CLOUDFLARE_ACCOUNT_ID` for the account that owns `freecreds-db`.
+
+Deploy the scheduled Worker:
+
+```bash
+npm run cf:deploy:refresh
+```
+
+Schedules are in UTC:
+
+- CVC refresh: `0 9 1,15 * *` (roughly every two weeks).
+- ASSIST refresh: `0 10 1 1,4,7,10 *` (quarterly).
+
+You can manually enqueue a refresh after deployment:
+
+```bash
+curl -X POST "https://freecreds-refresh.YOUR_SUBDOMAIN.workers.dev/refresh?job=cvc" \
+  -H "Authorization: Bearer YOUR_MANUAL_TRIGGER_TOKEN"
+```
+
+The Worker records jobs in `ingest_jobs`, then dispatches
+`.github/workflows/refresh-data.yml`. The workflow exports D1 to SQLite, runs
+the appropriate Python ingester, applies schedule URLs and upcoming terms, then
+imports the refreshed rows back into D1.
+
 ## How the data flows
 
 ```
