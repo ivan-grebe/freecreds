@@ -135,6 +135,13 @@ function preferredModality(existing: string | undefined, candidate: string): str
   return existing;
 }
 
+function tuplePlaceholders(count: number): string {
+  if (!Number.isInteger(count) || count <= 0) {
+    throw new Error(`Invalid tuple placeholder count: ${count}`);
+  }
+  return Array.from({ length: count }, () => "(?, ?, ?)").join(",");
+}
+
 function parseCompanionIds(value: string | null): number[] {
   if (!value) return [];
   try {
@@ -271,17 +278,33 @@ async function queryOfferings(
     return offerings;
   }
 
-  const institutionIds = uniqueNumbers(rows.map((row) => row.cc_institution_id));
-  for (const instChunk of chunks(institutionIds, 80)) {
+  const seen = new Map<string, { institutionId: number; prefix: string; number: string }>();
+  for (const row of rows) {
+    const prefix = row.cc_prefix.toUpperCase();
+    const number = row.cc_number.toUpperCase();
+    const key = offeringKey(row.cc_institution_id, prefix, number);
+    if (!seen.has(key)) {
+      seen.set(key, { institutionId: row.cc_institution_id, prefix, number });
+    }
+  }
+
+  const lookupKeys = [...seen.values()];
+  const maxKeysPerQuery = Math.max(1, Math.floor((90 - termIds.length) / 3));
+  for (const keyChunk of chunks(lookupKeys, maxKeysPerQuery)) {
     const termMarks = placeholders(termIds.length);
-    const instMarks = placeholders(instChunk.length);
+    const keyMarks = tuplePlaceholders(keyChunk.length);
+    const params: Array<string | number> = [...termIds];
+    for (const key of keyChunk) {
+      params.push(key.institutionId, key.prefix, key.number);
+    }
     const offRows = await allRows<OfferingRow>(
       env.DB.prepare(`
         SELECT institution_id, UPPER(prefix) AS prefix,
                UPPER(number) AS number, modality
         FROM class_offerings
-        WHERE term_id IN (${termMarks}) AND institution_id IN (${instMarks})
-      `).bind(...termIds, ...instChunk),
+        WHERE term_id IN (${termMarks})
+          AND (institution_id, prefix, number) IN (VALUES ${keyMarks})
+      `).bind(...params),
     );
     for (const offering of offRows) {
       const key = offeringKey(offering.institution_id, offering.prefix, offering.number);

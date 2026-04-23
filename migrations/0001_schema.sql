@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS institutions (
   schedule_url TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_inst_code ON institutions(code);
+CREATE INDEX IF NOT EXISTS idx_inst_code_nocase
+  ON institutions(code COLLATE NOCASE);
 CREATE INDEX IF NOT EXISTS idx_inst_category ON institutions(category);
 
 CREATE TABLE IF NOT EXISTS courses (
@@ -23,6 +25,8 @@ CREATE TABLE IF NOT EXISTS courses (
   UNIQUE(institution_id, course_identifier_parent_id)
 );
 CREATE INDEX IF NOT EXISTS idx_courses_lookup ON courses(institution_id, prefix, number);
+CREATE INDEX IF NOT EXISTS idx_courses_lookup_nocase
+  ON courses(institution_id, prefix COLLATE NOCASE, number COLLATE NOCASE);
 
 CREATE TABLE IF NOT EXISTS articulations (
   id INTEGER PRIMARY KEY,
@@ -37,6 +41,9 @@ CREATE TABLE IF NOT EXISTS articulations (
 );
 CREATE INDEX IF NOT EXISTS idx_art_lookup ON articulations(
   university_id, academic_year_id, receiving_course_id
+);
+CREATE INDEX IF NOT EXISTS idx_art_receiving_year_cc ON articulations(
+  receiving_course_id, academic_year_id, sending_cc_id
 );
 
 CREATE TABLE IF NOT EXISTS articulation_course_groups (
@@ -66,6 +73,9 @@ CREATE TABLE IF NOT EXISTS reverse_index (
 );
 CREATE INDEX IF NOT EXISTS idx_reverse ON reverse_index(
   receiving_course_id, academic_year_id
+);
+CREATE INDEX IF NOT EXISTS idx_reverse_receiving_year_cc ON reverse_index(
+  receiving_course_id, academic_year_id, sending_cc_id
 );
 CREATE INDEX IF NOT EXISTS idx_reverse_sending ON reverse_index(
   sending_cc_id, academic_year_id
@@ -105,6 +115,8 @@ CREATE INDEX IF NOT EXISTS idx_offerings_lookup
   ON class_offerings(institution_id, prefix, number, term_id);
 CREATE INDEX IF NOT EXISTS idx_offerings_course
   ON class_offerings(course_id, term_id);
+CREATE INDEX IF NOT EXISTS idx_offerings_source_term
+  ON class_offerings(source, term_id);
 
 CREATE TABLE IF NOT EXISTS ingest_jobs (
   id TEXT PRIMARY KEY,

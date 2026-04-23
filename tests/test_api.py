@@ -74,6 +74,31 @@ def _seed_reverse_lookup_db(db_path: Path) -> None:
             ),
         ],
     )
+    term_id = db.upsert_term(conn, "FA26", "Fall 2026", "Fall", 2026)
+    db.upsert_class_offering(
+        conn,
+        institution_id=new_cc_id,
+        course_id=None,
+        prefix="MATH",
+        number="1A",
+        term_id=term_id,
+        modality="online_async",
+        source="cvc",
+        source_ref="https://search.cvc.edu/courses/1",
+        fetched_at="2026-04-23T00:00:00+00:00",
+    )
+    db.upsert_class_offering(
+        conn,
+        institution_id=new_cc_id,
+        course_id=None,
+        prefix="ENGL",
+        number="1A",
+        term_id=term_id,
+        modality="online_async",
+        source="cvc",
+        source_ref="https://search.cvc.edu/courses/2",
+        fetched_at="2026-04-23T00:00:00+00:00",
+    )
     conn.commit()
     conn.close()
 
@@ -104,3 +129,12 @@ def test_reverse_lookup_rejects_invalid_term(client: TestClient):
 
     assert response.status_code == 400
     assert "Invalid term code" in response.json()["detail"]
+
+
+def test_reverse_lookup_term_filter_uses_matching_course(client: TestClient):
+    response = client.get("/api/reverse?university=CSUFULL&prefix=MATH&number=170A&term=FA26")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert [row["cc_code"] for row in data["results"]] == ["NEWCC"]
+    assert data["results"][0]["offering_status"] == "async_online"

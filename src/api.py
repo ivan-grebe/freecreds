@@ -87,10 +87,12 @@ def list_courses(
             """SELECT DISTINCT c.prefix, c.number, c.title, c.min_units, c.max_units
                FROM courses c
                WHERE c.institution_id = ?
-                 AND c.id IN (SELECT DISTINCT receiving_course_id FROM articulations
-                              WHERE university_id = ?)
+                 AND EXISTS (
+                   SELECT 1 FROM articulations a
+                   WHERE a.receiving_course_id = c.id
+                 )
                ORDER BY c.prefix, c.number""",
-            (uni["id"], uni["id"]),
+            (uni["id"],),
         ).fetchall()
         return {
             "university": {"code": uni["code"].strip(), "name": uni["name"]},
@@ -264,19 +266,37 @@ def reverse_lookup(
 
         offerings_map: Dict[Tuple[int, str, str], str] = {}
         if query_term_ids and rows:
-            inst_ids = {r["cc_institution_id"] for r in rows}
+            offering_keys = sorted({
+                (
+                    r["cc_institution_id"],
+                    r["cc_prefix"].upper(),
+                    r["cc_number"].upper(),
+                )
+                for r in rows
+            })
             t_marks = ",".join(["?"] * len(query_term_ids))
-            i_marks = ",".join(["?"] * len(inst_ids))
-            off_rows = conn.execute(
-                f"""SELECT institution_id, UPPER(prefix) AS prefix,
-                           UPPER(number) AS number, modality
-                    FROM class_offerings
-                    WHERE term_id IN ({t_marks}) AND institution_id IN ({i_marks})""",
-                [*query_term_ids, *inst_ids],
-            ).fetchall()
-            for o in off_rows:
-                key = (o["institution_id"], o["prefix"], o["number"])
-                offerings_map[key] = _preferred_modality(offerings_map.get(key), o["modality"])
+            # Keep under SQLite's common 999-variable limit while still
+            # letting the composite offerings index do point lookups.
+            max_keys_per_query = max(1, (900 - len(query_term_ids)) // 3)
+            for start in range(0, len(offering_keys), max_keys_per_query):
+                key_chunk = offering_keys[start:start + max_keys_per_query]
+                key_marks = ",".join(["(?, ?, ?)"] * len(key_chunk))
+                params: List[Any] = [*query_term_ids]
+                for inst_id, prefix_key, number_key in key_chunk:
+                    params.extend([inst_id, prefix_key, number_key])
+                off_rows = conn.execute(
+                    f"""SELECT institution_id, UPPER(prefix) AS prefix,
+                               UPPER(number) AS number, modality
+                        FROM class_offerings
+                        WHERE term_id IN ({t_marks})
+                          AND (institution_id, prefix, number) IN (VALUES {key_marks})""",
+                    params,
+                ).fetchall()
+                for o in off_rows:
+                    key = (o["institution_id"], o["prefix"], o["number"])
+                    offerings_map[key] = _preferred_modality(
+                        offerings_map.get(key), o["modality"]
+                    )
 
         results: List[Dict[str, Any]] = []
         all_course_ids: Set[int] = set()

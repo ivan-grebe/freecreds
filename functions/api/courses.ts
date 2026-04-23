@@ -34,12 +34,12 @@ export const onRequestGet: PagesFunction<Env> = async ({ env, request }) => {
       SELECT DISTINCT c.prefix, c.number, c.title, c.min_units, c.max_units
       FROM courses c
       WHERE c.institution_id = ?
-        AND c.id IN (
-          SELECT DISTINCT receiving_course_id FROM articulations
-          WHERE university_id = ?
+        AND EXISTS (
+          SELECT 1 FROM articulations a
+          WHERE a.receiving_course_id = c.id
         )
       ORDER BY c.prefix, c.number
-    `).bind(uni.id, uni.id),
+    `).bind(uni.id),
   );
 
   return json({

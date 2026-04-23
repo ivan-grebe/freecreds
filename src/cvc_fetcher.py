@@ -302,7 +302,7 @@ def write_offerings(
             log.debug("No ASSIST code for CVC college %r", rec.college_name)
             continue
         inst_row = conn.execute(
-            "SELECT id FROM institutions WHERE TRIM(code) = ?", (code,)
+            "SELECT id FROM institutions WHERE code = ?", (code.strip(),)
         ).fetchone()
         if not inst_row:
             counts["skipped_missing_institution"] += 1
@@ -316,7 +316,8 @@ def write_offerings(
         course_row = conn.execute(
             """SELECT id FROM courses
                WHERE institution_id = ?
-                 AND UPPER(prefix) = ? AND UPPER(number) = ?""",
+                 AND prefix = ? COLLATE NOCASE
+                 AND number = ? COLLATE NOCASE""",
             (institution_id, rec.prefix, rec.number),
         ).fetchone()
         course_id = course_row[0] if course_row else None

@@ -44,7 +44,7 @@ def apply_schedule_urls(conn: sqlite3.Connection) -> int:
         cur = conn.execute(
             """UPDATE institutions
                SET schedule_url = ?
-               WHERE TRIM(code) = ? AND schedule_url IS NULL""",
+               WHERE code = ? AND schedule_url IS NULL""",
             (url, code),
         )
         n += cur.rowcount
