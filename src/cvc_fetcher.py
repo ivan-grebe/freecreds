@@ -24,16 +24,17 @@ in `data/assist.db` — the only ones we need offering data for, since
 anything that doesn't articulate somewhere won't surface in reverse
 lookups anyway.
 
-Required filters on the search URL:
+Required filters on the search URL (verified empirically April 2026 —
+dropping `search_type` collapses large result sets to ~1 page):
 - `filter[search_type]=open_search`
-- `filter[search_all_universities]=false`
-- `filter[display_home_school]=false`
-- `filter[university_id]=<any home college id>`  (affects pricing display
-  only; results are the same aggregate set)
 - `filter[session_names][]=<term label>`         (e.g. "Fall 2026")
 - `filter[delivery_method_subtypes][]=<subtype>` (online_async / online_sync)
 - `filter[subject]=<prefix>`                     (**required** — no subject = no results)
 - `page=N`                                        (1-indexed)
+
+`search_all_universities`, `display_home_school`, and `university_id`
+were previously sent but are not actually required — results are
+identical with or without them.
 
 ## Graceful degradation
 
@@ -75,8 +76,6 @@ log = logging.getLogger(__name__)
 CVC_BASE_URL = "https://search.cvc.edu"
 USER_AGENT = "reverse-assist-search/0.1 (+contact: ivanderson412@gmail.com)"
 THROTTLE_S = 0.6
-TIMEOUT_S = 30.0
-DEFAULT_HOME_UNIVERSITY_ID = 101  # arbitrary; affects tuition display only
 MAX_PAGES_PER_QUERY = 200  # safety cap; CVC typically returns ≤ ~40 pages
 MODALITY_SUBTYPES = (("online_async", "online_async"), ("online_sync", "online_sync"))
 WRITE_COUNT_KEYS = ("written", "skipped_unknown_college", "skipped_missing_institution")
@@ -226,15 +225,10 @@ def parse_home_college_options(html: str) -> List[Tuple[int, str]]:
 # --- HTTP layer --------------------------------------------------------------
 
 class CVCClient:
-    def __init__(
-        self,
-        base_url: str = CVC_BASE_URL,
-        home_university_id: int = DEFAULT_HOME_UNIVERSITY_ID,
-    ):
+    def __init__(self, base_url: str = CVC_BASE_URL):
         self.base_url = base_url.rstrip("/")
-        self.home_university_id = home_university_id
         self._client = httpx.Client(
-            timeout=TIMEOUT_S,
+            timeout=httpx.Timeout(connect=10.0, read=15.0, write=15.0, pool=5.0),
             headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml"},
             follow_redirects=True,
         )
@@ -266,9 +260,6 @@ class CVCClient:
         self._throttle()
         params = [
             ("filter[search_type]", "open_search"),
-            ("filter[search_all_universities]", "false"),
-            ("filter[display_home_school]", "false"),
-            ("filter[university_id]", str(self.home_university_id)),
             ("filter[session_names][]", term.label),
             ("filter[delivery_method_subtypes][]", modality_subtype),
             ("filter[subject]", subject),
@@ -378,6 +369,8 @@ def ingest_terms(
     subjects: Optional[List[str]] = None,
 ) -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    # httpx logs every request at INFO; that buries our own progress output.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     terms = [parse_code(c) for c in term_codes]
 
     conn = db.connect(db_path)
@@ -441,6 +434,14 @@ def ingest_terms(
                         term_total += counts["written"]
                         cards_for_subject += len(records)
                         pages_fetched += 1
+                        # Heartbeat: isolates HTTP-side stalls from Python-side
+                        # stalls. If we stop seeing this line but httpx WARN
+                        # logs still fire, the hang is in parse/write/commit.
+                        log.info(
+                            "    %s/%s subj=%s p%d: %d cards parsed, %d written",
+                            term.code, subtype, subject, page,
+                            len(records), counts["written"],
+                        )
                     if cards_for_subject:
                         log.info(
                             "  %s / %s subj=%-8s [%d/%d] %d cards (%d pages)",
