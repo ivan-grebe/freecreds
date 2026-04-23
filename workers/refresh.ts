@@ -27,7 +27,6 @@ interface GitHubTarget {
 
 const CRON_TO_JOB: Record<string, JobKind> = {
   "0 9 1,15 * *": "cvc",
-  "0 10 1 1,4,7,10 *": "assist",
 };
 
 function json(data: unknown, init: ResponseInit = {}): Response {
@@ -130,6 +129,10 @@ async function dispatchGitHubJob(env: Env, job: JobRecord): Promise<void> {
   const url = `https://api.github.com/repos/${encodeURIComponent(target.owner)}/${encodeURIComponent(target.repo)}/dispatches`;
   const payload = {
     event_type: `freecreds-${job.kind}-refresh`,
+    client_payload: {
+      kind: job.kind,
+      job_id: job.id,
+    },
   };
   const payloadJson = JSON.stringify(payload);
   const response = await fetch(url, {

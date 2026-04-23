@@ -91,6 +91,12 @@ python -m src.ingester --all
 python -m src.cvc_fetcher
 ```
 
+Build the lightweight CVC seed snapshot used by the cron workflow:
+
+```bash
+npm run cf:seed:cvc
+```
+
 Then export the runtime SQLite rows and import them to D1:
 
 ```bash
@@ -150,7 +156,7 @@ npm run cf:deploy:refresh
 Schedules are in UTC:
 
 - CVC refresh: `0 9 1,15 * *` (roughly every two weeks).
-- ASSIST refresh: `0 10 1 1,4,7,10 *` (quarterly).
+- ASSIST refresh: manual only on the free-plan setup.
 
 You can manually enqueue a refresh after deployment:
 
@@ -160,9 +166,23 @@ curl -X POST "https://freecreds-refresh.YOUR_SUBDOMAIN.workers.dev/refresh?job=c
 ```
 
 The Worker records jobs in `ingest_jobs`, then dispatches
-`.github/workflows/refresh-data.yml`. The workflow exports D1 to SQLite, runs
-the appropriate Python ingester, applies schedule URLs and upcoming terms, then
+`.github/workflows/refresh-data.yml`. The workflow either restores the slim
+CVC seed snapshot or builds a fresh ASSIST database from scratch, runs the
+appropriate Python ingester(s), applies schedule URLs and upcoming terms, then
 imports the refreshed rows back into D1.
+
+Free-plan note: the automated CVC refresh does **not** export the live D1
+database. Instead it restores a committed seed snapshot from
+`seed/cvc-base.sql.gz`, runs `src.cvc_fetcher`, and imports only the refreshed
+`terms` + `class_offerings` rows. Rebuild that seed snapshot whenever you do a
+full ASSIST refresh:
+
+```bash
+npm run cf:seed:cvc
+git add seed/cvc-base.sql.gz
+git commit -m "Refresh CVC seed snapshot"
+git push
+```
 
 ## How the data flows
 
@@ -180,6 +200,9 @@ src/schedule_urls.py ── auto-applied on API startup ──▶ institutions.s
 - **Class offerings** (CVC) — refresh whenever you want fresh offering
   status. Idempotent: re-running deletes stale rows for the same term
   before re-inserting.
+- **Cloudflare CVC cron** — reuses the committed `seed/cvc-base.sql.gz`
+  snapshot so it does not have to export the large D1 articulation tables
+  on every run.
 - **Schedule URLs** — static map in [src/schedule_urls.py](src/schedule_urls.py),
   applied to `institutions.schedule_url` on server startup. Fill out missing
   entries to cover more colleges; see that file's header for the pattern.

@@ -136,6 +136,7 @@ async function main() {
 
   const sqlite = spawn("sqlite3", [inputPath], {
     stdio: ["pipe", "pipe", "pipe"],
+    shell: process.platform === "win32",
   });
 
   sqlite.on("error", (err) => {

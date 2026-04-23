@@ -24,6 +24,9 @@ data/*.db-wal
 data/*.db-shm
 d1_import.sql
 d1_import/
+d1_cvc_import/
+seed/*.sql
+tmp_cvc_seed.*
 
 # --- Editor / OS ---
 .vscode/

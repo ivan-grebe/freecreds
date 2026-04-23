@@ -11,6 +11,9 @@
     "cf:db:create": "wrangler d1 create freecreds-db",
     "cf:db:schema": "wrangler d1 execute freecreds-db --remote --file migrations/0001_schema.sql --yes",
     "cf:db:dump": "node scripts/dump-sqlite-for-d1.mjs data/assist.db d1_import",
+    "cf:db:dump:cvc": "node scripts/dump-cvc-for-d1.mjs data/assist.db d1_cvc_import",
+    "cf:seed:cvc": "node scripts/build-cvc-seed.mjs data/assist.db seed/cvc-base.sql.gz",
+    "cf:seed:cvc:restore": "node scripts/restore-cvc-seed.mjs seed/cvc-base.sql.gz data/assist.db",
     "cf:db:split": "node scripts/split-d1-import.mjs d1_import",
     "cf:db:import": "node scripts/import-d1-chunks.mjs d1_import freecreds-db"
   },

@@ -36,6 +36,12 @@ jobs:
         shell: bash
         run: |
           KIND="${{ github.event.client_payload.kind || inputs.job }}"
+          if [[ -z "$KIND" ]]; then
+            case "${{ github.event.action }}" in
+              freecreds-cvc-refresh) KIND="cvc" ;;
+              freecreds-assist-refresh) KIND="assist" ;;
+            esac
+          fi
           if [[ "$KIND" != "cvc" && "$KIND" != "assist" ]]; then
             echo "Unsupported refresh kind: $KIND" >&2
             exit 1
@@ -62,21 +68,14 @@ jobs:
           python -m pip install -e .
           npm ci
 
-      - name: Export current D1 database to SQLite
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Reset local SQLite workspace
+        shell: bash
         run: |
-          npx wrangler d1 export "$D1_DATABASE_NAME" --remote --output d1_export.sql --skip-confirmation
           mkdir -p data
-          sqlite3 data/assist.db < d1_export.sql
+          rm -f data/assist.db data/assist.db-wal data/assist.db-shm data/assist.db-journal
 
-      - name: Refresh ASSIST articulations
-        if: steps.refresh.outputs.kind == 'assist'
-        run: python -m src.ingester --all
-
-      - name: Refresh CVC offerings
-        if: steps.refresh.outputs.kind == 'cvc'
+      - name: Determine CVC terms
+        id: terms
         shell: bash
         run: |
           TERMS="$(python - <<'PY'
@@ -85,7 +84,19 @@ jobs:
           print(",".join(t.code for t in upcoming_terms(date.today(), count=4)))
           PY
           )"
-          python -m src.cvc_fetcher --terms "$TERMS"
+          echo "codes=$TERMS" >> "$GITHUB_OUTPUT"
+
+      - name: Restore CVC seed database
+        if: steps.refresh.outputs.kind == 'cvc'
+        run: node scripts/restore-cvc-seed.mjs seed/cvc-base.sql.gz data/assist.db
+
+      - name: Refresh ASSIST articulations
+        if: steps.refresh.outputs.kind == 'assist'
+        run: python -m src.ingester --all
+
+      - name: Refresh CVC offerings
+        if: steps.refresh.outputs.kind == 'cvc' || steps.refresh.outputs.kind == 'assist'
+        run: python -m src.cvc_fetcher --terms "${{ steps.terms.outputs.codes }}"
 
       - name: Apply schedule URLs and seed upcoming terms
         run: |
@@ -113,7 +124,17 @@ jobs:
               conn.close()
           PY
 
-      - name: Import refreshed data into D1
+      - name: Import CVC offerings into D1
+        if: steps.refresh.outputs.kind == 'cvc'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          node scripts/dump-cvc-for-d1.mjs data/assist.db d1_cvc_import "${{ steps.terms.outputs.codes }}"
+          node scripts/import-d1-chunks.mjs d1_cvc_import "$D1_DATABASE_NAME"
+
+      - name: Import full ASSIST data into D1
+        if: steps.refresh.outputs.kind == 'assist'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -123,6 +144,7 @@ jobs:
 
       - name: Mark ingest job completed
         if: steps.refresh.outputs.job_id != ''
+        continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
