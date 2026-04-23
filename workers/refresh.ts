@@ -16,7 +16,13 @@ interface JobRecord {
   requested_by: string;
   started_at: string;
   error?: string;
+  warning?: string;
   metadata?: Record<string, unknown>;
+}
+
+interface GitHubTarget {
+  owner: string;
+  repo: string;
 }
 
 const CRON_TO_JOB: Record<string, JobKind> = {
@@ -43,7 +49,41 @@ function parseJobKind(value: string | null): JobKind | null {
 }
 
 function githubConfigured(env: Env): boolean {
-  return Boolean(env.GITHUB_TOKEN && env.GITHUB_OWNER && env.GITHUB_REPO);
+  return Boolean(env.GITHUB_TOKEN && githubTarget(env));
+}
+
+function githubTarget(env: Env): GitHubTarget | null {
+  const owner = normalizeGitHubPart(env.GITHUB_OWNER);
+  const repoValue = normalizeGitHubPart(env.GITHUB_REPO);
+  if (!repoValue) {
+    return null;
+  }
+
+  const repoPath = repoValue
+    .replace(/^https:\/\/github\.com\//i, "")
+    .replace(/\.git$/i, "");
+  const parts = repoPath.split("/").filter(Boolean);
+
+  if (parts.length >= 2) {
+    return { owner: parts[0], repo: parts[1] };
+  }
+  if (owner) {
+    return { owner, repo: parts[0] };
+  }
+  return null;
+}
+
+function normalizeGitHubPart(value: string | undefined): string | null {
+  const normalized = value?.trim().replace(/^["']|["']$/g, "");
+  return normalized || null;
+}
+
+function normalizeGitHubToken(value: string): string {
+  return value
+    .trim()
+    .replace(/^Bearer\s+/i, "")
+    .replace(/^token\s+/i, "")
+    .replace(/[^A-Za-z0-9_]/g, "");
 }
 
 async function insertJob(env: Env, job: JobRecord): Promise<void> {
@@ -62,6 +102,11 @@ async function insertJob(env: Env, job: JobRecord): Promise<void> {
   ).run();
 }
 
+function isDbSizeError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return message.includes("Exceeded maximum DB size");
+}
+
 async function updateJob(
   env: Env,
   id: string,
@@ -76,34 +121,37 @@ async function updateJob(
 }
 
 async function dispatchGitHubJob(env: Env, job: JobRecord): Promise<void> {
-  if (!githubConfigured(env)) {
+  const target = githubTarget(env);
+  if (!env.GITHUB_TOKEN || !target) {
     return;
   }
 
-  const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/dispatches`;
+  const repoPath = `${target.owner}/${target.repo}`;
+  const url = `https://api.github.com/repos/${encodeURIComponent(target.owner)}/${encodeURIComponent(target.repo)}/dispatches`;
+  const payload = {
+    event_type: `freecreds-${job.kind}-refresh`,
+  };
+  const payloadJson = JSON.stringify(payload);
   const response = await fetch(url, {
     method: "POST",
     headers: {
-      accept: "application/vnd.github+json",
-      authorization: `Bearer ${env.GITHUB_TOKEN}`,
-      "content-type": "application/json",
-      "user-agent": "freecreds-cloudflare-refresh",
-      "x-github-api-version": "2022-11-28",
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${normalizeGitHubToken(env.GITHUB_TOKEN)}`,
+      "Content-Type": "application/json",
+      "User-Agent": "freecreds-cloudflare-refresh",
+      "X-GitHub-Api-Version": "2022-11-28",
     },
-    body: JSON.stringify({
-      event_type: `freecreds-${job.kind}-refresh`,
-      client_payload: {
-        job_id: job.id,
-        kind: job.kind,
-        requested_by: job.requested_by,
-        source: "cloudflare-cron",
-      },
-    }),
+    body: new TextEncoder().encode(payloadJson),
   });
 
   if (response.status !== 204) {
     const body = await response.text();
-    throw new Error(`GitHub dispatch failed: HTTP ${response.status} ${body}`);
+    const requestId = response.headers.get("x-github-request-id");
+    throw new Error(
+      `GitHub dispatch failed for ${repoPath}: HTTP ${response.status}`
+      + `${requestId ? ` request_id=${requestId}` : ""}`
+      + `${body ? ` ${body}` : ""}`,
+    );
   }
 }
 
@@ -123,18 +171,31 @@ async function enqueueRefresh(
     },
   };
 
-  await insertJob(env, job);
+  let jobStored = true;
+  try {
+    await insertJob(env, job);
+  } catch (err) {
+    if (!isDbSizeError(err)) {
+      throw err;
+    }
+    jobStored = false;
+    job.warning = "D1 job logging skipped because the database is over the write-size limit";
+  }
 
   try {
     await dispatchGitHubJob(env, job);
     if (githubConfigured(env)) {
       job.status = "dispatched";
-      await updateJob(env, job.id, "dispatched");
+      if (jobStored) {
+        await updateJob(env, job.id, "dispatched");
+      }
     }
   } catch (err) {
     job.status = "failed";
     job.error = err instanceof Error ? err.message : String(err);
-    await updateJob(env, job.id, "failed", job.error);
+    if (jobStored) {
+      await updateJob(env, job.id, "failed", job.error);
+    }
     throw err;
   }
 
@@ -175,10 +236,16 @@ export default {
   },
 
   async fetch(request, env) {
-    const url = new URL(request.url);
-    if (request.method === "POST" && (url.pathname === "/" || url.pathname === "/refresh")) {
-      return await handleManual(request, env);
+    try {
+      const url = new URL(request.url);
+      if (request.method === "POST" && (url.pathname === "/" || url.pathname === "/refresh")) {
+        return await handleManual(request, env);
+      }
+      return json({ ok: true, schedules: CRON_TO_JOB });
+    } catch (err) {
+      return json({
+        error: err instanceof Error ? err.message : String(err),
+      }, { status: 500 });
     }
-    return json({ ok: true, schedules: CRON_TO_JOB });
   },
 } satisfies ExportedHandler<Env>;
