@@ -118,8 +118,8 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          node scripts/dump-sqlite-for-d1.mjs data/assist.db d1_import.sql
-          npx wrangler d1 execute "$D1_DATABASE_NAME" --remote --file d1_import.sql --yes
+          node scripts/dump-sqlite-for-d1.mjs data/assist.db d1_import
+          node scripts/import-d1-chunks.mjs d1_import "$D1_DATABASE_NAME"
 
       - name: Mark ingest job completed
         if: steps.refresh.outputs.job_id != ''

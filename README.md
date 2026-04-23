@@ -91,10 +91,20 @@ python -m src.ingester --all
 python -m src.cvc_fetcher
 ```
 
-Then export the SQLite rows and import them to D1:
+Then export the runtime SQLite rows and import them to D1:
 
 ```bash
 npm run cf:db:dump
+npm run cf:db:import
+```
+
+The dump writes chunked SQL files under `d1_import/`. It intentionally omits
+large stored ASSIST `raw_json` payloads because the Cloudflare API only needs
+the indexed runtime tables. If Cloudflare times out during import, split the
+files smaller and retry:
+
+```bash
+npm run cf:db:split
 npm run cf:db:import
 ```
 

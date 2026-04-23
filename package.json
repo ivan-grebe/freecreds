@@ -10,8 +10,9 @@
     "cf:typecheck": "tsc --noEmit",
     "cf:db:create": "wrangler d1 create freecreds-db",
     "cf:db:schema": "wrangler d1 execute freecreds-db --remote --file migrations/0001_schema.sql --yes",
-    "cf:db:dump": "node scripts/dump-sqlite-for-d1.mjs data/assist.db d1_import.sql",
-    "cf:db:import": "wrangler d1 execute freecreds-db --remote --file d1_import.sql --yes"
+    "cf:db:dump": "node scripts/dump-sqlite-for-d1.mjs data/assist.db d1_import",
+    "cf:db:split": "node scripts/split-d1-import.mjs d1_import",
+    "cf:db:import": "node scripts/import-d1-chunks.mjs d1_import freecreds-db"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260422.1",
