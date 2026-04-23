@@ -165,16 +165,56 @@ def test_cross_listed_receiving_captured():
     assert p.cross_listed_receiving[0].prefix == "CHIC"
 
 
-def test_series_type_skipped_in_mvp():
+def test_series_fans_out_to_each_member_course():
+    """A Series receiving side (UCR BIOL 5A + BIOL 5LA ← BIOL 150)
+    fans out into one ParsedArticulation per member course, all sharing
+    the same sending tree."""
+    series_courses = [
+        dict(_course(71, "BIOL", "5A"), id="guid-a"),
+        dict(_course(72, "BIOL", "5LA"), id="guid-la"),
+    ]
     series_art = {
         "type": "Series",
-        "series": {"conjunction": "And", "courses": [_course(71, "HIST", "170A")]},
+        "series": {"conjunction": "And", "courses": series_courses},
         "visibleCrossListedCourses": [],
-        "sendingArticulation": _sa_single_course(72, "HIST", "17A"),
+        "sendingArticulation": _sa_single_course(99, "BIOL", "150"),
     }
     payload = _agreement([series_art])
     parsed = list(iter_parsed_articulations(payload))
-    assert parsed == []
+    assert len(parsed) == 2
+    recv_parents = {p.receiving_course.course_identifier_parent_id for p in parsed}
+    assert recv_parents == {71, 72}
+    # Both share the same sending side (one CC course satisfies the bundle).
+    for p in parsed:
+        assert len(p.sending_groups) == 1
+        assert [c.course_identifier_parent_id for c in p.sending_groups[0].courses] == [99]
+        rows = build_reverse_rows(p)
+        assert len(rows) == 1 and rows[0].is_standalone
+
+
+def test_series_cross_listed_attributed_by_series_course_id():
+    """visibleCrossListedCourses on a Series carry seriesCourseId pointing
+    to which series member they alias. Each alias must land on its own
+    ParsedArticulation, not all of them."""
+    series_courses = [
+        dict(_course(81, "HIST", "170A"), id="guid-a"),
+        dict(_course(82, "AFAM", "190"), id="guid-b"),
+    ]
+    xl_a = dict(_course(83, "HIST", "170A-alt"), seriesCourseId="guid-a")
+    xl_b = dict(_course(84, "CHIC", "190"), seriesCourseId="guid-b")
+    series_art = {
+        "type": "Series",
+        "series": {"conjunction": "And", "courses": series_courses},
+        "visibleCrossListedCourses": [xl_a, xl_b],
+        "sendingArticulation": _sa_single_course(99, "HIST", "17"),
+    }
+    payload = _agreement([series_art])
+    parsed = list(iter_parsed_articulations(payload))
+    by_recv = {p.receiving_course.course_identifier_parent_id: p for p in parsed}
+    assert len(by_recv[81].cross_listed_receiving) == 1
+    assert by_recv[81].cross_listed_receiving[0].course_identifier_parent_id == 83
+    assert len(by_recv[82].cross_listed_receiving) == 1
+    assert by_recv[82].cross_listed_receiving[0].course_identifier_parent_id == 84
 
 
 def test_real_fixture_parses_and_has_mix():

@@ -61,7 +61,8 @@ CREATE TABLE IF NOT EXISTS reverse_index (
   is_standalone_equivalent BOOLEAN NOT NULL,
   companion_course_ids TEXT,
   academic_year_id INTEGER NOT NULL,
-  source_context TEXT NOT NULL DEFAULT 'AllDepartments'
+  source_context TEXT NOT NULL DEFAULT 'AllDepartments',
+  receiving_companion_course_ids TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_reverse ON reverse_index(
   receiving_course_id, academic_year_id

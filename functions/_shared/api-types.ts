@@ -26,6 +26,7 @@ export interface ReverseIndexRow extends Record<string, unknown> {
   max_units: number | null;
   is_standalone_equivalent: number;
   companion_course_ids: string | null;
+  receiving_companion_course_ids: string | null;
   cc_institution_id: number;
   sources_csv: string | null;
   academic_year_id: number;

@@ -60,6 +60,7 @@ def _seed_reverse_lookup_db(db_path: Path) -> None:
                 [],
                 75,
                 "AllDepartments",
+                [],
             ),
             (
                 receiving_course_id,
@@ -69,6 +70,7 @@ def _seed_reverse_lookup_db(db_path: Path) -> None:
                 [],
                 76,
                 "AllDepartments",
+                [],
             ),
         ],
     )

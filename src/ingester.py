@@ -278,6 +278,11 @@ def _ingest_one_agreement(
             course_cache[(university_db_id, xl.course_identifier_parent_id)]
             for xl in parsed.cross_listed_receiving
         ]
+        # Series fan-out leaves us with the *other* receiving members of the
+        # same series. Taking any sending course also yields credit for them.
+        receiving_sibling_ids = [
+            ensure_course(sib, university_db_id) for sib in parsed.receiving_siblings
+        ]
         reverse_rows = build_reverse_rows(parsed)
         row_tuples = []
         for target_recv_id in receiving_targets:
@@ -293,6 +298,7 @@ def _ingest_one_agreement(
                         companions_db_ids,
                         academic_year_id,
                         row_source,
+                        receiving_sibling_ids,
                     )
                 )
         if row_tuples:

@@ -237,7 +237,7 @@ async function loadUniversities() {
   uniCombo.setEnabled(false, "Loading universities…");
   let data;
   try {
-    const res = await fetch("/api/universities");
+    const res = await fetch("/universities.json");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     data = await res.json();
   } catch (e) {
@@ -419,6 +419,14 @@ function renderResults(data) {
         const list = el("ul", { class: "companion-list" });
         list.appendChild(el("li", {}, "Must be taken with:"));
         for (const comp of r.companion_courses) {
+          list.appendChild(el("li", {}, renderCourse(comp)));
+        }
+        courseCell.appendChild(list);
+      }
+      if (r.receiving_companion_courses && r.receiving_companion_courses.length) {
+        const list = el("ul", { class: "receiving-companion-list" });
+        list.appendChild(el("li", {}, "Also yields credit for:"));
+        for (const comp of r.receiving_companion_courses) {
           list.appendChild(el("li", {}, renderCourse(comp)));
         }
         courseCell.appendChild(list);

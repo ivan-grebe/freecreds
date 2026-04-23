@@ -64,7 +64,8 @@ const EXPORTS = [
     sql: `
       SELECT id, receiving_course_id, sending_cc_id, sending_course_id,
              is_standalone_equivalent, ${clean("companion_course_ids")},
-             academic_year_id, ${clean("source_context")}
+             academic_year_id, ${clean("source_context")},
+             ${clean("receiving_companion_course_ids")}
       FROM reverse_index
       ORDER BY id;
     `,

@@ -61,21 +61,6 @@ async def _lifespan(_: FastAPI):
 app = FastAPI(title="Reverse ASSIST Search", lifespan=_lifespan)
 
 
-@app.get("/api/universities")
-def list_universities() -> Dict[str, Any]:
-    conn = _conn()
-    try:
-        rows = conn.execute(
-            """SELECT code, name, category FROM institutions
-               WHERE category IN ('CSU','UC','AICCU')
-                 AND id IN (SELECT DISTINCT university_id FROM articulations)
-               ORDER BY category, name"""
-        ).fetchall()
-        return {"universities": [dict(r) for r in rows]}
-    finally:
-        conn.close()
-
-
 @app.get("/api/terms")
 def list_terms() -> Dict[str, Any]:
     """Four upcoming terms, starting from today. Clients populate the
@@ -240,6 +225,7 @@ def reverse_lookup(
                  c_cc.title AS cc_title,
                  c_cc.min_units, c_cc.max_units,
                  ri.is_standalone_equivalent, ri.companion_course_ids,
+                 ri.receiving_companion_course_ids,
                  ri.sending_cc_id AS cc_institution_id,
                  GROUP_CONCAT(DISTINCT ri.source_context) AS sources_csv,
                  ri.academic_year_id AS academic_year_id
@@ -255,7 +241,8 @@ def reverse_lookup(
         if standalone_only:
             sql += " AND ri.is_standalone_equivalent = 1"
         sql += (
-            " GROUP BY cc.id, c_cc.id, ri.is_standalone_equivalent, ri.companion_course_ids"
+            " GROUP BY cc.id, c_cc.id, ri.is_standalone_equivalent,"
+            "          ri.companion_course_ids, ri.receiving_companion_course_ids"
             " ORDER BY cc.name, c_cc.prefix, c_cc.number"
         )
 
@@ -292,25 +279,30 @@ def reverse_lookup(
                 offerings_map[key] = _preferred_modality(offerings_map.get(key), o["modality"])
 
         results: List[Dict[str, Any]] = []
-        companion_ids: Set[int] = set()
-        parsed_rows: List[Tuple[sqlite3.Row, List[int]]] = []
+        all_course_ids: Set[int] = set()
+        parsed_rows: List[Tuple[sqlite3.Row, List[int], List[int]]] = []
         for r in rows:
             comps = json.loads(r["companion_course_ids"]) if r["companion_course_ids"] else []
-            companion_ids.update(comps)
-            parsed_rows.append((r, comps))
+            recv_comps = (
+                json.loads(r["receiving_companion_course_ids"])
+                if r["receiving_companion_course_ids"] else []
+            )
+            all_course_ids.update(comps)
+            all_course_ids.update(recv_comps)
+            parsed_rows.append((r, comps, recv_comps))
 
-        companion_map: Dict[int, Dict[str, Any]] = {}
-        if companion_ids:
-            q_marks = ",".join(["?"] * len(companion_ids))
+        course_map: Dict[int, Dict[str, Any]] = {}
+        if all_course_ids:
+            q_marks = ",".join(["?"] * len(all_course_ids))
             comp_rows = conn.execute(
                 f"""SELECT id, prefix, number, title, min_units, max_units
                     FROM courses WHERE id IN ({q_marks})""",
-                list(companion_ids),
+                list(all_course_ids),
             ).fetchall()
             for cr in comp_rows:
-                companion_map[cr["id"]] = _course_row_to_obj(cr)
+                course_map[cr["id"]] = _course_row_to_obj(cr)
 
-        for r, comps in parsed_rows:
+        for r, comps, recv_comps in parsed_rows:
             key = (r["cc_institution_id"], r["cc_prefix"].upper(), r["cc_number"].upper())
             modality = offerings_map.get(key) if query_term_ids else None
             # Per-row status only has meaning when the user picked a specific term.
@@ -340,7 +332,10 @@ def reverse_lookup(
                     "max_units": r["max_units"],
                 },
                 "is_standalone": bool(r["is_standalone_equivalent"]),
-                "companion_courses": [companion_map.get(cid, {"id": cid}) for cid in comps],
+                "companion_courses": [course_map.get(cid, {"id": cid}) for cid in comps],
+                "receiving_companion_courses": [
+                    course_map.get(cid, {"id": cid}) for cid in recv_comps
+                ],
                 "offering_status": status,
                 "schedule_url": r["cc_schedule_url"],
                 "sources": sources,

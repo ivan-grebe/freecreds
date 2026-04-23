@@ -79,7 +79,8 @@ CREATE TABLE IF NOT EXISTS reverse_index (
   is_standalone_equivalent BOOLEAN NOT NULL,
   companion_course_ids TEXT,
   academic_year_id INTEGER NOT NULL,
-  source_context TEXT NOT NULL DEFAULT 'AllDepartments'
+  source_context TEXT NOT NULL DEFAULT 'AllDepartments',
+  receiving_companion_course_ids TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_reverse ON reverse_index(
   receiving_course_id, academic_year_id
@@ -189,6 +190,11 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute(
             "ALTER TABLE reverse_index "
             "ADD COLUMN source_context TEXT NOT NULL DEFAULT 'AllDepartments'"
+        )
+    if "receiving_companion_course_ids" not in rev_cols:
+        conn.execute(
+            "ALTER TABLE reverse_index "
+            "ADD COLUMN receiving_companion_course_ids TEXT"
         )
 
 
@@ -321,21 +327,26 @@ def insert_group_member(
 
 def insert_reverse_index_rows(
     conn: sqlite3.Connection,
-    rows: Iterable[Tuple[int, int, int, bool, List[int], int, str]],
+    rows: Iterable[Tuple[int, int, int, bool, List[int], int, str, List[int]]],
 ) -> None:
     """rows: iterable of (receiving_course_id, sending_cc_id, sending_course_id,
-    is_standalone, companion_ids, academic_year_id, source_context).
+    is_standalone, companion_ids, academic_year_id, source_context,
+    receiving_companion_ids).
     """
     payload = [
-        (rcid, ccid, scid, 1 if standalone else 0, json.dumps(companions), yid, src)
-        for (rcid, ccid, scid, standalone, companions, yid, src) in rows
+        (
+            rcid, ccid, scid, 1 if standalone else 0,
+            json.dumps(companions), yid, src,
+            json.dumps(recv_comps) if recv_comps else None,
+        )
+        for (rcid, ccid, scid, standalone, companions, yid, src, recv_comps) in rows
     ]
     conn.executemany(
         """INSERT INTO reverse_index
              (receiving_course_id, sending_cc_id, sending_course_id,
               is_standalone_equivalent, companion_course_ids, academic_year_id,
-              source_context)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+              source_context, receiving_companion_course_ids)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
         payload,
     )
 

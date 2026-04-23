@@ -17,7 +17,13 @@ A group of 1 course → standalone equivalent (single course satisfies).
 A group of N courses with "And" → bundle (all N required together).
 A group of N courses with "Or" → flatten; each course is a standalone option.
 
-Series-typed receiving articulations are skipped in MVP.
+Series-typed receiving articulations represent an AND/OR bundle on the
+*receiving* side (e.g. UCR's BIOL 5A + BIOL 5LA treated as a single
+transfer unit). We fan them out: one ParsedArticulation per course in
+the series, sharing the same sending tree. That way a search for any
+member course surfaces the sending CC. The nuance that taking the
+sending course also yields credit for the other series members is
+not surfaced in the UI today.
 """
 from __future__ import annotations
 
@@ -55,6 +61,11 @@ class ParsedArticulation:
     # mapping in the normalizer. None for AllDepartments entries or when
     # the cell lookup couldn't resolve a major.
     source_major: Optional[str] = None
+    # Other receiving courses bundled with this one on the university side
+    # (populated when the articulation came from a Series fan-out). Taking
+    # any sending course in this articulation also yields credit for these
+    # siblings. Empty for ordinary Course-type articulations.
+    receiving_siblings: List[CourseRef] = field(default_factory=list)
 
 
 def _course_ref(obj: Dict[str, Any]) -> Optional[CourseRef]:
@@ -121,32 +132,83 @@ def iter_parsed_articulations(agreement_payload: Dict[str, Any]) -> Iterator[Par
 
     for dept in arts:
         for a in dept.get("articulations") or []:
-            if a.get("type") != "Course":
-                # Series / other types deferred past MVP
-                continue
-            course_obj = a.get("course") or {}
-            recv = _course_ref(course_obj)
-            if recv is None:
-                continue
+            atype = a.get("type")
+            if atype == "Course":
+                yield from _yield_course_articulation(a)
+            elif atype == "Series":
+                yield from _yield_series_articulation(a)
+            # Other receiving types (if any) are still skipped.
 
-            cross_listed: List[CourseRef] = []
-            for xl in a.get("visibleCrossListedCourses") or []:
-                r = _course_ref(xl)
-                if r is not None:
-                    cross_listed.append(r)
 
-            sa = a.get("sendingArticulation") or {}
-            groups = _parse_sending_groups(sa)
-            no_art = _no_art_label(sa) if not groups else None
+def _yield_course_articulation(a: Dict[str, Any]) -> Iterator[ParsedArticulation]:
+    course_obj = a.get("course") or {}
+    recv = _course_ref(course_obj)
+    if recv is None:
+        return
 
-            yield ParsedArticulation(
-                receiving_course=recv,
-                cross_listed_receiving=cross_listed,
-                sending_groups=groups,
-                no_articulation_reason=no_art,
-                raw=a,
-                source_major=a.get("_source_major"),
-            )
+    cross_listed: List[CourseRef] = []
+    for xl in a.get("visibleCrossListedCourses") or []:
+        r = _course_ref(xl)
+        if r is not None:
+            cross_listed.append(r)
+
+    sa = a.get("sendingArticulation") or {}
+    groups = _parse_sending_groups(sa)
+    no_art = _no_art_label(sa) if not groups else None
+
+    yield ParsedArticulation(
+        receiving_course=recv,
+        cross_listed_receiving=cross_listed,
+        sending_groups=groups,
+        no_articulation_reason=no_art,
+        raw=a,
+        source_major=a.get("_source_major"),
+    )
+
+
+def _yield_series_articulation(a: Dict[str, Any]) -> Iterator[ParsedArticulation]:
+    """Fan out a Series (receiving-side AND/OR bundle) into one
+    ParsedArticulation per member course. Cross-listed aliases are
+    attributed to the specific series course they alias, via the
+    `seriesCourseId` GUID on each visibleCrossListedCourses entry.
+    """
+    series = a.get("series") or {}
+    series_courses = series.get("courses") or []
+    if not series_courses:
+        return
+
+    xl_by_series_id: Dict[str, List[CourseRef]] = {}
+    for xl in a.get("visibleCrossListedCourses") or []:
+        sid = xl.get("seriesCourseId")
+        ref = _course_ref(xl)
+        if sid is None or ref is None:
+            continue
+        xl_by_series_id.setdefault(sid, []).append(ref)
+
+    sa = a.get("sendingArticulation") or {}
+    groups = _parse_sending_groups(sa)
+    no_art = _no_art_label(sa) if not groups else None
+    source_major = a.get("_source_major")
+
+    # Pre-resolve all series members; we need to know siblings per member.
+    resolved: List[Tuple[Dict[str, Any], CourseRef]] = []
+    for c in series_courses:
+        recv = _course_ref(c)
+        if recv is not None:
+            resolved.append((c, recv))
+
+    for i, (c, recv) in enumerate(resolved):
+        cross_listed = xl_by_series_id.get(c.get("id") or "", [])
+        siblings = [other for j, (_, other) in enumerate(resolved) if j != i]
+        yield ParsedArticulation(
+            receiving_course=recv,
+            cross_listed_receiving=cross_listed,
+            sending_groups=groups,
+            no_articulation_reason=no_art,
+            raw=a,
+            source_major=source_major,
+            receiving_siblings=siblings,
+        )
 
 
 # --- Reverse-index derivation ---

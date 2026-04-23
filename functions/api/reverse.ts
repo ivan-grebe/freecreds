@@ -219,6 +219,7 @@ async function queryReverseRows(
            c_cc.title AS cc_title,
            c_cc.min_units, c_cc.max_units,
            ri.is_standalone_equivalent, ri.companion_course_ids,
+           ri.receiving_companion_course_ids,
            ri.sending_cc_id AS cc_institution_id,
            GROUP_CONCAT(DISTINCT ri.source_context) AS sources_csv,
            ri.academic_year_id AS academic_year_id
@@ -237,7 +238,8 @@ async function queryReverseRows(
     sql += " AND ri.is_standalone_equivalent = 1";
   }
   sql += `
-    GROUP BY cc.id, c_cc.id, ri.is_standalone_equivalent, ri.companion_course_ids
+    GROUP BY cc.id, c_cc.id, ri.is_standalone_equivalent,
+             ri.companion_course_ids, ri.receiving_companion_course_ids
     ORDER BY cc.name, c_cc.prefix, c_cc.number
   `;
 
@@ -292,12 +294,18 @@ async function queryOfferings(
 
 async function queryCompanions(
   env: Env,
-  parsedRows: Array<{ row: ReverseIndexRow; companionIds: number[] }>,
+  parsedRows: Array<{
+    row: ReverseIndexRow;
+    companionIds: number[];
+    receivingCompanionIds: number[];
+  }>,
 ): Promise<Map<number, CoursePayload>> {
   const companionMap = new Map<number, CoursePayload>();
-  const companionIds = uniqueNumbers(parsedRows.flatMap((item) => item.companionIds));
+  const allIds = uniqueNumbers(
+    parsedRows.flatMap((item) => [...item.companionIds, ...item.receivingCompanionIds]),
+  );
 
-  for (const idChunk of chunks(companionIds, 80)) {
+  for (const idChunk of chunks(allIds, 80)) {
     const rows = await allRows<ReceivingCourseRow>(
       env.DB.prepare(`
         SELECT id, prefix, number, title, min_units, max_units
@@ -391,11 +399,12 @@ export const onRequestGet: PagesFunction<Env> = async ({ env, request }) => {
   const parsedRows = rows.map((row) => ({
     row,
     companionIds: parseCompanionIds(row.companion_course_ids),
+    receivingCompanionIds: parseCompanionIds(row.receiving_companion_course_ids),
   }));
   const companionMap = await queryCompanions(env, parsedRows);
 
   const results = [];
-  for (const { row, companionIds } of parsedRows) {
+  for (const { row, companionIds, receivingCompanionIds } of parsedRows) {
     const modality = offeringTermIds.length
       ? offerings.get(offeringKey(row.cc_institution_id, row.cc_prefix, row.cc_number))
       : undefined;
@@ -414,6 +423,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ env, request }) => {
       cc_course: courseRowToObj(row),
       is_standalone: Boolean(row.is_standalone_equivalent),
       companion_courses: companionIds.map((id) => companionMap.get(id) || { id }),
+      receiving_companion_courses: receivingCompanionIds.map(
+        (id) => companionMap.get(id) || { id },
+      ),
       offering_status: term.id != null ? offeringStatus(modality) : "unknown",
       schedule_url: safeScheduleUrl(row.cc_schedule_url),
       sources,
