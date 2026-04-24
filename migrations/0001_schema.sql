@@ -36,7 +36,6 @@ CREATE TABLE IF NOT EXISTS articulations (
   academic_year_id INTEGER NOT NULL,
   source_context TEXT NOT NULL DEFAULT 'AllDepartments',
   no_articulation_reason TEXT,
-  raw_json TEXT NOT NULL,
   UNIQUE(receiving_course_id, sending_cc_id, academic_year_id, source_context)
 );
 CREATE INDEX IF NOT EXISTS idx_art_lookup ON articulations(

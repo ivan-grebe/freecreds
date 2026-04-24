@@ -54,7 +54,6 @@ CREATE TABLE IF NOT EXISTS articulations (
   academic_year_id INTEGER NOT NULL,
   source_context TEXT NOT NULL DEFAULT 'AllDepartments',
   no_articulation_reason TEXT,
-  raw_json TEXT NOT NULL,
   UNIQUE(receiving_course_id, sending_cc_id, academic_year_id, source_context)
 );
 CREATE INDEX IF NOT EXISTS idx_art_lookup ON articulations(
@@ -179,14 +178,13 @@ def _migrate(conn: sqlite3.Connection) -> None:
               academic_year_id INTEGER NOT NULL,
               source_context TEXT NOT NULL DEFAULT 'AllDepartments',
               no_articulation_reason TEXT,
-              raw_json TEXT NOT NULL,
               UNIQUE(receiving_course_id, sending_cc_id, academic_year_id, source_context)
             );
             INSERT INTO articulations_new
               (id, receiving_course_id, sending_cc_id, university_id,
-               academic_year_id, no_articulation_reason, raw_json)
+               academic_year_id, no_articulation_reason)
               SELECT id, receiving_course_id, sending_cc_id, university_id,
-                     academic_year_id, no_articulation_reason, raw_json
+                     academic_year_id, no_articulation_reason
               FROM articulations;
             DROP TABLE articulations;
             ALTER TABLE articulations_new RENAME TO articulations;
@@ -208,6 +206,21 @@ def _migrate(conn: sqlite3.Connection) -> None:
             "ALTER TABLE reverse_index "
             "ADD COLUMN receiving_companion_course_ids TEXT"
         )
+
+    conn.executescript(
+        """
+        CREATE INDEX IF NOT EXISTS idx_inst_code_nocase
+          ON institutions(code COLLATE NOCASE);
+        CREATE INDEX IF NOT EXISTS idx_courses_lookup_nocase
+          ON courses(institution_id, prefix COLLATE NOCASE, number COLLATE NOCASE);
+        CREATE INDEX IF NOT EXISTS idx_art_receiving_year_cc
+          ON articulations(receiving_course_id, academic_year_id, sending_cc_id);
+        CREATE INDEX IF NOT EXISTS idx_reverse_receiving_year_cc
+          ON reverse_index(receiving_course_id, academic_year_id, sending_cc_id);
+        CREATE INDEX IF NOT EXISTS idx_offerings_source_term
+          ON class_offerings(source, term_id);
+        """
+    )
 
 
 def upsert_institution(
@@ -280,7 +293,6 @@ def insert_articulation(
     university_id: int,
     academic_year_id: int,
     no_articulation_reason: Optional[str],
-    raw_json: str,
     source_context: str = "AllDepartments",
 ) -> Optional[int]:
     """Insert an articulation row. Returns the row id, or None if a
@@ -291,9 +303,8 @@ def insert_articulation(
     cur = conn.execute(
         """INSERT OR IGNORE INTO articulations
              (receiving_course_id, sending_cc_id, university_id,
-              academic_year_id, source_context,
-              no_articulation_reason, raw_json)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+              academic_year_id, source_context, no_articulation_reason)
+           VALUES (?, ?, ?, ?, ?, ?)""",
         (
             receiving_course_id,
             sending_cc_id,
@@ -301,7 +312,6 @@ def insert_articulation(
             academic_year_id,
             source_context,
             no_articulation_reason,
-            raw_json,
         ),
     )
     return cur.lastrowid if cur.rowcount else None
@@ -365,12 +375,13 @@ def insert_reverse_index_rows(
 
 def insert_cross_listing(
     conn: sqlite3.Connection, primary_course_id: int, alias_course_id: int
-) -> None:
-    conn.execute(
+) -> bool:
+    cur = conn.execute(
         """INSERT OR IGNORE INTO cross_listings (primary_course_id, alias_course_id)
            VALUES (?, ?)""",
         (primary_course_id, alias_course_id),
     )
+    return cur.rowcount > 0
 
 
 def upsert_term(

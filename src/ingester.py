@@ -13,6 +13,7 @@ import json
 import logging
 import sqlite3
 import sys
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -27,7 +28,16 @@ from .parser import ParsedArticulation, build_reverse_rows, iter_parsed_articula
 
 log = logging.getLogger(__name__)
 
-COUNT_KEYS = ("articulations", "with_sending", "no_art", "reverse_rows")
+COUNT_KEYS = (
+    "courses",
+    "cross_listings",
+    "articulations",
+    "with_sending",
+    "no_art",
+    "course_groups",
+    "group_members",
+    "reverse_rows",
+)
 
 
 def _empty_counts() -> Dict[str, int]:
@@ -37,6 +47,19 @@ def _empty_counts() -> Dict[str, int]:
 def _add_counts(total: Dict[str, int], counts: Dict[str, int]) -> None:
     for key in COUNT_KEYS:
         total[key] += counts.get(key, 0)
+
+
+def _elapsed(started_at: float) -> str:
+    seconds = int(time.monotonic() - started_at)
+    hours, rem = divmod(seconds, 3600)
+    minutes, seconds = divmod(rem, 60)
+    if hours:
+        return f"{hours:d}h {minutes:02d}m {seconds:02d}s"
+    return f"{minutes:d}m {seconds:02d}s"
+
+
+def _format_counts(counts: Dict[str, int]) -> str:
+    return ", ".join(f"{key}={counts[key]}" for key in COUNT_KEYS if counts.get(key))
 
 
 def _institution_name(inst: Dict[str, Any], year_hint: Optional[int] = None) -> str:
@@ -220,6 +243,7 @@ def _ingest_one_agreement(
             is_terminated=parsed_course.is_terminated,
         )
         course_cache[key] = cid
+        counts["courses"] += 1
         return cid
 
     for parsed in iter_parsed_articulations(agreement_payload):
@@ -234,7 +258,8 @@ def _ingest_one_agreement(
         # Cross-listed receiving aliases — index them at the university too
         for xl in parsed.cross_listed_receiving:
             alias_db_id = ensure_course(xl, university_db_id)
-            db.insert_cross_listing(conn, recv_db_id, alias_db_id)
+            if db.insert_cross_listing(conn, recv_db_id, alias_db_id):
+                counts["cross_listings"] += 1
 
         # Ensure all sending courses exist first
         sending_db_ids: Dict[int, int] = {}  # parent_id → db id
@@ -249,7 +274,6 @@ def _ingest_one_agreement(
             university_id=university_db_id,
             academic_year_id=academic_year_id,
             no_articulation_reason=parsed.no_articulation_reason,
-            raw_json=json.dumps(parsed.raw),
             source_context=row_source,
         )
         counts["articulations"] += 1
@@ -268,10 +292,12 @@ def _ingest_one_agreement(
         # Persist AND/OR tree
         for gi, grp in enumerate(parsed.sending_groups):
             group_row_id = db.insert_course_group(conn, art_id, grp.conjunction, gi)
+            counts["course_groups"] += 1
             for ci, c in enumerate(grp.courses):
                 db.insert_group_member(
                     conn, group_row_id, sending_db_ids[c.course_identifier_parent_id], ci
                 )
+                counts["group_members"] += 1
 
         # Reverse-index rows — for each sending course, including cross-listed receiving
         receiving_targets = [recv_db_id] + [
@@ -314,6 +340,7 @@ def ingest_university(
     limit_ccs: Optional[int] = None,
 ) -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     conn = db.connect(db_path)
     db.init_db(conn)
     try:
@@ -341,6 +368,7 @@ def _ingest_university_from_context(
     university_code: str,
     limit_ccs: Optional[int] = None,
 ) -> Dict[str, int]:
+    target_started_at = time.monotonic()
     university = find_institution_by_code(institutions, university_code)
     uni_assist_id = university["id"]
     uni_db_id = id_map[uni_assist_id]
@@ -360,11 +388,14 @@ def _ingest_university_from_context(
     log.info("CCCs to process: %d", len(active_ccs))
 
     # Idempotency: clear prior data for this (university, year)
+    log.info("Clearing prior articulation data for %s/%d", university_code, year_id)
     db.clear_articulation_data(conn, uni_db_id, year_id)
     conn.commit()
+    log.info("Clear complete for %s/%d", university_code, year_id)
 
     totals = _empty_counts()
     for i, entry in enumerate(active_ccs, start=1):
+        cc_started_at = time.monotonic()
         cc = entry["receivingInstitution"]
         cc_assist_id = cc["id"]
         cc_db_id = id_map[cc_assist_id]
@@ -385,6 +416,14 @@ def _ingest_university_from_context(
         per_cc = _empty_counts()
         sources_used: List[str] = []
         for summary_key, schema in summaries:
+            summary_started_at = time.monotonic()
+            log.info(
+                "[%d/%d] %s [%s]: fetching agreement key",
+                i,
+                len(active_ccs),
+                cc_code,
+                schema,
+            )
             try:
                 payload = client.get_agreement(summary_key)
             except Exception as e:
@@ -412,20 +451,40 @@ def _ingest_university_from_context(
             _add_counts(per_cc, counts)
             _add_counts(totals, counts)
             sources_used.append(schema)
+            log.info(
+                "[%d/%d] %s [%s]: parsed/wrote in %s (%s)",
+                i,
+                len(active_ccs),
+                cc_code,
+                schema,
+                _elapsed(summary_started_at),
+                _format_counts(counts) or "no rows",
+            )
         conn.commit()
         log.info(
-            "[%d/%d] %s [%s]: %d articulations (%d with sending, %d no-art), %d reverse rows",
+            (
+                "[%d/%d] %s [%s]: committed in %s; "
+                "%d articulations (%d with sending, %d no-art), %d reverse rows; "
+                "target elapsed %s"
+            ),
             i,
             len(active_ccs),
             cc_code,
             "+".join(sources_used) or "none",
+            _elapsed(cc_started_at),
             per_cc["articulations"],
             per_cc["with_sending"],
             per_cc["no_art"],
             per_cc["reverse_rows"],
+            _elapsed(target_started_at),
         )
 
-    log.info("Done. Totals: %s", totals)
+    log.info(
+        "Done %s in %s. Totals: %s",
+        university_code,
+        _elapsed(target_started_at),
+        totals,
+    )
     return totals
 
 
@@ -443,7 +502,9 @@ def ingest_all_targets(
     keeps going. Returns {"succeeded": [...], "failed": [...]}.
     """
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     log.info("Fetching institution list from ASSIST...")
+    run_started_at = time.monotonic()
     conn = db.connect(db_path)
     db.init_db(conn)
     try:
@@ -474,8 +535,16 @@ def ingest_all_targets(
             succeeded: List[str] = []
             failed: List[str] = []
             for i, (cat, code) in enumerate(targets, start=1):
+                target_started_at = time.monotonic()
                 log.info("=" * 60)
-                log.info("[%d/%d] %s (%s)", i, len(targets), code, cat)
+                log.info(
+                    "[%d/%d] %s (%s) starting; run elapsed %s",
+                    i,
+                    len(targets),
+                    code,
+                    cat,
+                    _elapsed(run_started_at),
+                )
                 try:
                     _ingest_university_from_context(conn, client, institutions, id_map, code)
                 except Exception as e:
@@ -484,9 +553,22 @@ def ingest_all_targets(
                     failed.append(code)
                 else:
                     succeeded.append(code)
+                    log.info(
+                        "[%d/%d] %s completed in %s; run elapsed %s",
+                        i,
+                        len(targets),
+                        code,
+                        _elapsed(target_started_at),
+                        _elapsed(run_started_at),
+                    )
 
             log.info("=" * 60)
-            log.info("Done. %d succeeded, %d failed.", len(succeeded), len(failed))
+            log.info(
+                "Done in %s. %d succeeded, %d failed.",
+                _elapsed(run_started_at),
+                len(succeeded),
+                len(failed),
+            )
             if failed:
                 log.info("Failed codes: %s", ", ".join(failed))
             return {"succeeded": succeeded, "failed": failed}

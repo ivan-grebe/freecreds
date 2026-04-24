@@ -15,9 +15,14 @@ on:
         options:
           - cvc
           - assist
+      enqueue_cvc_after_assist:
+        description: "Queue a separate CVC refresh after a successful ASSIST refresh"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   D1_DATABASE_NAME: freecreds-db
@@ -46,7 +51,13 @@ jobs:
             echo "Unsupported refresh kind: $KIND" >&2
             exit 1
           fi
+          ENQUEUE_CVC="${{ github.event.client_payload.enqueue_cvc || inputs.enqueue_cvc_after_assist || 'false' }}"
+          case "$ENQUEUE_CVC" in
+            true|True|TRUE|1|yes|Yes|YES) ENQUEUE_CVC="true" ;;
+            *) ENQUEUE_CVC="false" ;;
+          esac
           echo "kind=$KIND" >> "$GITHUB_OUTPUT"
+          echo "enqueue_cvc_after_assist=$ENQUEUE_CVC" >> "$GITHUB_OUTPUT"
           echo "job_id=${{ github.event.client_payload.job_id }}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Python
@@ -95,7 +106,7 @@ jobs:
         run: python -m src.ingester --all
 
       - name: Refresh CVC offerings
-        if: steps.refresh.outputs.kind == 'cvc' || steps.refresh.outputs.kind == 'assist'
+        if: steps.refresh.outputs.kind == 'cvc'
         run: python -m src.cvc_fetcher --terms "${{ steps.terms.outputs.codes }}"
 
       - name: Apply schedule URLs and seed upcoming terms
@@ -141,6 +152,32 @@ jobs:
         run: |
           node scripts/dump-sqlite-for-d1.mjs data/assist.db d1_import
           node scripts/import-d1-chunks.mjs d1_import "$D1_DATABASE_NAME"
+
+      - name: Queue CVC refresh after ASSIST
+        if: steps.refresh.outputs.kind == 'assist' && steps.refresh.outputs.enqueue_cvc_after_assist == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        shell: bash
+        run: |
+          CVC_JOB_ID="cvc-${{ github.run_id }}-${{ github.run_attempt }}"
+          NOW="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          cat > cvc_job.sql <<SQL
+          INSERT INTO ingest_jobs
+            (id, kind, status, requested_by, started_at, metadata)
+          VALUES
+            ('$CVC_JOB_ID', 'cvc', 'dispatched', 'assist-refresh', '$NOW',
+             '{"dispatch_target":"github_repository_dispatch","parent_run_id":"${{ github.run_id }}"}');
+          SQL
+          npx wrangler d1 execute "$D1_DATABASE_NAME" --remote --file cvc_job.sql --yes
+          curl -fsSL \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${{ github.repository }}/dispatches" \
+            -d "{\"event_type\":\"freecreds-cvc-refresh\",\"client_payload\":{\"kind\":\"cvc\",\"job_id\":\"$CVC_JOB_ID\",\"requested_by\":\"assist-refresh\"}}"
 
       - name: Mark ingest job completed
         if: steps.refresh.outputs.job_id != ''

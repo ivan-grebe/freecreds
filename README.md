@@ -104,10 +104,11 @@ npm run cf:db:dump
 npm run cf:db:import
 ```
 
-The dump writes chunked SQL files under `d1_import/`. It intentionally omits
-large stored ASSIST `raw_json` payloads because the Cloudflare API only needs
-the indexed runtime tables. If Cloudflare times out during import, split the
-files smaller and retry:
+The dump writes chunked SQL files under `d1_import/`. It intentionally exports
+a slim runtime shape: no stored ASSIST JSON payloads, duplicate reverse-index
+rows collapsed by source list, and only the articulation rows needed for course
+discovery plus explicit no-articulation results. If Cloudflare times out during
+import, split the files smaller and retry:
 
 ```bash
 npm run cf:db:split

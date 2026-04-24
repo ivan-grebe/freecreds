@@ -51,23 +51,55 @@ const EXPORTS = [
   {
     table: "articulations",
     sql: `
-      SELECT id, receiving_course_id, sending_cc_id, university_id,
-             academic_year_id, ${clean("source_context")},
-             ${clean("no_articulation_reason")},
-             '{}' AS raw_json
-      FROM articulations
-      ORDER BY id;
+      WITH runtime_articulations AS (
+        SELECT receiving_course_id,
+               university_id AS sending_cc_id,
+               university_id,
+               academic_year_id,
+               'RuntimeCourseYear' AS source_context,
+               NULL AS no_articulation_reason
+        FROM articulations
+        GROUP BY receiving_course_id, university_id, academic_year_id
+        UNION ALL
+        SELECT a.receiving_course_id,
+               a.sending_cc_id,
+               a.university_id,
+               a.academic_year_id,
+               ${clean("a.source_context")} AS source_context,
+               ${clean("a.no_articulation_reason")} AS no_articulation_reason
+        FROM articulations a
+        WHERE a.no_articulation_reason IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM reverse_index ri
+            WHERE ri.receiving_course_id = a.receiving_course_id
+              AND ri.sending_cc_id = a.sending_cc_id
+              AND ri.academic_year_id = a.academic_year_id
+          )
+      )
+      SELECT row_number() OVER (
+               ORDER BY receiving_course_id, sending_cc_id, academic_year_id, source_context
+             ) AS id,
+             receiving_course_id, sending_cc_id, university_id,
+             academic_year_id, source_context, no_articulation_reason
+      FROM runtime_articulations;
     `,
   },
   {
     table: "reverse_index",
     sql: `
-      SELECT id, receiving_course_id, sending_cc_id, sending_course_id,
+      SELECT row_number() OVER (
+               ORDER BY receiving_course_id, sending_cc_id, sending_course_id,
+                        is_standalone_equivalent, companion_course_ids,
+                        academic_year_id, receiving_companion_course_ids
+             ) AS id,
+             receiving_course_id, sending_cc_id, sending_course_id,
              is_standalone_equivalent, ${clean("companion_course_ids")},
-             academic_year_id, ${clean("source_context")},
+             academic_year_id, GROUP_CONCAT(DISTINCT ${clean("source_context")}),
              ${clean("receiving_companion_course_ids")}
       FROM reverse_index
-      ORDER BY id;
+      GROUP BY receiving_course_id, sending_cc_id, sending_course_id,
+               is_standalone_equivalent, companion_course_ids,
+               academic_year_id, receiving_companion_course_ids;
     `,
   },
   {
