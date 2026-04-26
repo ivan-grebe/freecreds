@@ -411,9 +411,9 @@ function renderResults(data) {
       ];
       const yearNote = renderYearNote(r, maxYearId);
       if (yearNote) ccChildren.push(yearNote);
-      const cc = el("td", {}, ccChildren);
+      const cc = el("td", { "data-label": "Community College" }, ccChildren);
 
-      const courseCell = el("td");
+      const courseCell = el("td", { "data-label": "Articulating Course" });
       courseCell.appendChild(document.createTextNode(renderCourse(r.cc_course)));
       if (!r.is_standalone && r.companion_courses.length) {
         const list = el("ul", { class: "companion-list" });
@@ -437,12 +437,12 @@ function renderResults(data) {
       const badge = r.is_standalone
         ? el("span", { class: "badge standalone" }, "standalone")
         : el("span", { class: "badge bundle" }, "AND bundle");
-      const type = el("td", {}, badge);
+      const type = el("td", { "data-label": "Type" }, badge);
 
       const cells = [cc, courseCell, type];
       if (showOfferingCols) {
-        cells.push(el("td", {}, renderOfferingBadge(r.offering_status)));
-        cells.push(el("td", {}, renderScheduleCell(r, termLabel)));
+        cells.push(el("td", { "data-label": "Offered" }, renderOfferingBadge(r.offering_status)));
+        cells.push(el("td", { "data-label": "Schedule" }, renderScheduleCell(r, termLabel)));
       }
       tbody.appendChild(el("tr", {}, cells));
     }
