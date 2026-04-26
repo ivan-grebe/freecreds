@@ -10,9 +10,12 @@ from pathlib import Path
 
 from src import db
 from src.cvc_fetcher import (
+    CVCClient,
+    CVC_HOME_UNIVERSITY_ID,
     OfferingRecord,
     count_cards,
     ensure_term,
+    has_next_page,
     parse_home_college_options,
     parse_search_html,
     write_offerings,
@@ -86,6 +89,40 @@ def test_parse_search_html_minimal():
 def test_count_cards_matches_parse():
     assert count_cards(CARD_HTML) == 2
     assert count_cards("<html><body>no results</body></html>") == 0
+
+
+def test_has_next_page_detects_enabled_pagination_link():
+    assert has_next_page('<a href="/search?page=2" rel="next">Next</a>')
+    assert not has_next_page('<span class="page next disabled">Next</span>')
+
+
+def test_search_html_sends_home_context_and_normalized_subject():
+    class FakeResponse:
+        status_code = 200
+        url = "https://search.cvc.edu/search"
+        text = "<html></html>"
+
+    class FakeHttpClient:
+        def __init__(self):
+            self.params = None
+
+        def get(self, _url, *, params):
+            self.params = params
+            return FakeResponse()
+
+    fake = FakeHttpClient()
+    client = CVCClient.__new__(CVCClient)
+    client.base_url = "https://search.cvc.edu"
+    client._client = fake
+    client._last_request_at = 0.0
+
+    term = parse_code("FA26")
+    assert client.search_html(term, "online_async", "MATH", page=3) == "<html></html>"
+    assert ("filter[search_all_universities]", "false") in fake.params
+    assert ("filter[display_home_school]", "false") in fake.params
+    assert ("filter[university_id]", CVC_HOME_UNIVERSITY_ID) in fake.params
+    assert ("filter[subject]", "math") in fake.params
+    assert ("page", "3") in fake.params
 
 
 def test_parse_search_html_skips_unparseable_titles():

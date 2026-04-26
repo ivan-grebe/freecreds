@@ -143,6 +143,23 @@ def test_and_bundle_produces_companions():
     assert by_id[32].companion_parent_ids == [31]
 
 
+def test_malformed_course_refs_are_skipped_safely():
+    payload = _agreement([
+        _recv(40, "", "100", _sa_single_course(41, "MATH", "1")),
+        _recv(42, "MATH", "100", _sa_single_course(43, "", "1")),
+        _recv(44, "MATH", "101", _sa_and_bundle([
+            (45, "MATH", "2"),
+            (46, "MATH", ""),
+        ])),
+    ])
+    parsed = list(iter_parsed_articulations(payload))
+
+    assert len(parsed) == 2
+    assert [p.receiving_course.course_identifier_parent_id for p in parsed] == [42, 44]
+    assert parsed[0].sending_groups == []
+    assert parsed[1].sending_groups == []
+
+
 def test_no_articulation_reason_captured():
     payload = _agreement([_recv(4, "PHIL", "100", _sa_no_art())])
     parsed = list(iter_parsed_articulations(payload))

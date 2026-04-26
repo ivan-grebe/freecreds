@@ -27,14 +27,17 @@ lookups anyway.
 Required filters on the search URL (verified empirically April 2026 —
 dropping `search_type` collapses large result sets to ~1 page):
 - `filter[search_type]=open_search`
+- `filter[search_all_universities]=false`
+- `filter[display_home_school]=false`
+- `filter[university_id]=101`
 - `filter[session_names][]=<term label>`         (e.g. "Fall 2026")
 - `filter[delivery_method_subtypes][]=<subtype>` (online_async / online_sync)
 - `filter[subject]=<prefix>`                     (**required** — no subject = no results)
 - `page=N`                                        (1-indexed)
 
 `search_all_universities`, `display_home_school`, and `university_id`
-were previously sent but are not actually required — results are
-identical with or without them.
+are part of the required browser-style context. If they are omitted, CVC
+ignores the subject filter and returns a broad all-subject result set.
 
 ## Graceful degradation
 
@@ -77,6 +80,7 @@ CVC_BASE_URL = "https://search.cvc.edu"
 USER_AGENT = "reverse-assist-search/0.1 (+contact: ivanderson412@gmail.com)"
 THROTTLE_S = 0.6
 MAX_PAGES_PER_QUERY = 200  # safety cap; CVC typically returns ≤ ~40 pages
+CVC_HOME_UNIVERSITY_ID = "101"
 MODALITY_SUBTYPES = (("online_async", "online_async"), ("online_sync", "online_sync"))
 WRITE_COUNT_KEYS = ("written", "skipped_unknown_college", "skipped_missing_institution")
 
@@ -177,6 +181,11 @@ def count_cards(html: str) -> int:
     return max(0, len(_CARD_SPLIT.split(html)) - 1)
 
 
+def has_next_page(html: str) -> bool:
+    """Return whether CVC rendered an enabled pagination next link."""
+    return bool(re.search(r'<a\b[^>]*\brel=["\']next["\']', html, re.IGNORECASE))
+
+
 class _HomeCollegeOptionParser(HTMLParser):
     """Pulls the home-college `<select>` options out of a CVC search page.
     Not used by the main ingest path, but exposed so we can regenerate
@@ -260,9 +269,12 @@ class CVCClient:
         self._throttle()
         params = [
             ("filter[search_type]", "open_search"),
+            ("filter[search_all_universities]", "false"),
+            ("filter[display_home_school]", "false"),
+            ("filter[university_id]", CVC_HOME_UNIVERSITY_ID),
             ("filter[session_names][]", term.label),
             ("filter[delivery_method_subtypes][]", modality_subtype),
-            ("filter[subject]", subject),
+            ("filter[subject]", subject.lower()),
             ("page", str(page)),
         ]
         url = f"{self.base_url}/search"
@@ -443,6 +455,8 @@ def ingest_terms(
                             term.code, subtype, subject, page,
                             len(records), counts["written"],
                         )
+                        if not has_next_page(html):
+                            break
                     if cards_for_subject:
                         log.info(
                             "  %s / %s subj=%-8s [%d/%d] %d cards (%d pages)",

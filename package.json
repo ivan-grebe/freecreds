@@ -16,7 +16,7 @@
     "cf:seed:cvc": "node scripts/build-cvc-seed.mjs data/assist.db seed/cvc-base.sql.gz",
     "cf:seed:cvc:restore": "node scripts/restore-cvc-seed.mjs seed/cvc-base.sql.gz data/assist.db",
     "cf:db:split": "node scripts/split-d1-import.mjs d1_import",
-    "cf:db:import": "node scripts/import-d1-chunks.mjs d1_import freecreds-db"
+    "cf:db:import": "node scripts/import-d1-chunks.mjs d1_import freecreds-db-v2"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260422.1",

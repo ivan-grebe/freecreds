@@ -75,12 +75,16 @@ def _course_ref(obj: Dict[str, Any]) -> Optional[CourseRef]:
     cpid = obj.get("courseIdentifierParentId")
     if cpid is None:
         return None
+    prefix = (obj.get("prefix") or "").strip()
+    number = (obj.get("courseNumber") or "").strip()
+    if not prefix or not number:
+        return None
     end = obj.get("end") or ""
     is_terminated = bool(end and end.strip())
     return CourseRef(
         course_identifier_parent_id=int(cpid),
-        prefix=(obj.get("prefix") or "").strip(),
-        number=(obj.get("courseNumber") or "").strip(),
+        prefix=prefix,
+        number=number,
         title=obj.get("courseTitle") or "",
         min_units=obj.get("minUnits"),
         max_units=obj.get("maxUnits"),
@@ -93,13 +97,16 @@ def _parse_sending_groups(sa: Dict[str, Any]) -> List[SendingGroup]:
     for grp in sa.get("items") or []:
         conjunction = grp.get("courseConjunction") or "Single"
         courses: List[CourseRef] = []
+        malformed_course = False
         for c in grp.get("items") or []:
             if c.get("type") != "Course":
                 continue
             ref = _course_ref(c)
-            if ref is not None:
-                courses.append(ref)
-        if not courses:
+            if ref is None:
+                malformed_course = True
+                continue
+            courses.append(ref)
+        if malformed_course or not courses:
             continue
         if len(courses) == 1:
             conjunction = "Single"
