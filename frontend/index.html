@@ -54,62 +54,62 @@
        wins over the media query. */
     @media (prefers-color-scheme: dark) {
       :root:not([data-theme="light"]) {
-        --bg: #121212;
-        --panel: #1c1c1c;
-        --ink: #e8e8e6;
-        --muted: #9a9a9a;
-        --line: #2e2e2c;
-        --accent: #5ea37a;
-        --accent-ink: #0f1a14;
-        --standalone: #7fbb97;
+        --bg: #0b0d0b;
+        --panel: #121613;
+        --ink: #efefeb;
+        --muted: #a4aaa2;
+        --line: #293129;
+        --accent: #3f8f61;
+        --accent-ink: #ffffff;
+        --standalone: #78c291;
         --bundle: #d6a866;
         --warn: #e09a9a;
-        --async: #7fbb97;
+        --async: #78c291;
         --sync: #7fb0d8;
         --unknown: #808080;
 
-        --input-bg: #242424;
-        --input-disabled-bg: #1a1a1a;
-        --hover-bg: #1f2a22;
-        --th-bg: #181816;
-        --badge-standalone-bg: #1f3328;
+        --input-bg: #171c18;
+        --input-disabled-bg: #101310;
+        --hover-bg: #1a2a20;
+        --th-bg: #0f130f;
+        --badge-standalone-bg: #172b20;
         --badge-bundle-bg: #3a2d1a;
-        --badge-async-bg: #1f3328;
-        --badge-sync-bg: #1a2a3a;
-        --badge-unknown-bg: #2a2a2a;
-        --error-bg: #2e1818;
+        --badge-async-bg: #172b20;
+        --badge-sync-bg: #142538;
+        --badge-unknown-bg: #222722;
+        --error-bg: #2a1515;
         --error-line: #5a2f2f;
-        --shadow: rgba(0,0,0,.45);
+        --shadow: rgba(0,0,0,.6);
       }
     }
     /* Explicit dark override (user clicked). Wins over light media query. */
     :root[data-theme="dark"] {
-      --bg: #121212;
-      --panel: #1c1c1c;
-      --ink: #e8e8e6;
-      --muted: #9a9a9a;
-      --line: #2e2e2c;
-      --accent: #5ea37a;
-      --accent-ink: #0f1a14;
-      --standalone: #7fbb97;
+      --bg: #0b0d0b;
+      --panel: #121613;
+      --ink: #efefeb;
+      --muted: #a4aaa2;
+      --line: #293129;
+      --accent: #3f8f61;
+      --accent-ink: #ffffff;
+      --standalone: #78c291;
       --bundle: #d6a866;
       --warn: #e09a9a;
-      --async: #7fbb97;
+      --async: #78c291;
       --sync: #7fb0d8;
       --unknown: #808080;
 
-      --input-bg: #242424;
-      --input-disabled-bg: #1a1a1a;
-      --hover-bg: #1f2a22;
-      --th-bg: #181816;
-      --badge-standalone-bg: #1f3328;
+      --input-bg: #171c18;
+      --input-disabled-bg: #101310;
+      --hover-bg: #1a2a20;
+      --th-bg: #0f130f;
+      --badge-standalone-bg: #172b20;
       --badge-bundle-bg: #3a2d1a;
-      --badge-async-bg: #1f3328;
-      --badge-sync-bg: #1a2a3a;
-      --badge-unknown-bg: #2a2a2a;
-      --error-bg: #2e1818;
+      --badge-async-bg: #172b20;
+      --badge-sync-bg: #142538;
+      --badge-unknown-bg: #222722;
+      --error-bg: #2a1515;
       --error-line: #5a2f2f;
-      --shadow: rgba(0,0,0,.45);
+      --shadow: rgba(0,0,0,.6);
     }
 
     * { box-sizing: border-box; }
@@ -127,7 +127,7 @@
       padding: .4rem .75rem; background: transparent; color: var(--muted);
       border: 1px solid var(--line); border-radius: 6px;
       font: inherit; font-size: 13px; font-weight: 500;
-      cursor: pointer; white-space: nowrap;
+      cursor: pointer; white-space: nowrap; touch-action: manipulation;
     }
     .theme-toggle:hover { color: var(--ink); border-color: var(--muted); }
     .controls {
@@ -170,8 +170,26 @@
       border: 0; border-radius: 6px; font: inherit; font-weight: 600; cursor: pointer;
     }
     button:disabled { opacity: .5; cursor: not-allowed; }
-    .filter-row { display: flex; gap: 1rem; font-size: 13px; color: var(--muted); flex-wrap: wrap; align-items: center; }
+    .filter-row {
+      display: grid; gap: .75rem; font-size: 13px; color: var(--muted);
+      grid-template-columns: minmax(16rem, 24rem);
+      align-items: center;
+    }
     .filter-row label { display: inline-flex; gap: .35rem; align-items: center; }
+    .term-filter-row {
+      display: grid;
+      grid-template-columns: max-content minmax(12rem, 1fr);
+      align-items: center;
+      gap: .6rem;
+      max-width: 28rem;
+    }
+    .term-filter-row > span { white-space: nowrap; }
+    .checkbox-filter-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .75rem 1.25rem;
+      align-items: center;
+    }
     .filter-row input[type="checkbox"]:disabled + *,
     .filter-row label:has(input[type="checkbox"]:disabled) { opacity: .45; cursor: not-allowed; }
     .meta { color: var(--muted); font-size: 13px; margin-bottom: .75rem; }
@@ -211,7 +229,7 @@
     footer a { color: var(--muted); }
 
     @media (max-width: 720px) {
-      body { padding: 1rem .75rem 2rem; font-size: 14px; }
+      body { padding: 1.55rem .75rem 2rem; font-size: 14px; }
       main { width: 100%; }
       .page-head {
         display: grid;
@@ -229,6 +247,7 @@
         gap: .85rem;
         padding: .85rem;
         margin-bottom: 1rem;
+        margin-top: .55rem;
       }
       .field,
       .field.compact {
@@ -242,6 +261,7 @@
       button {
         width: 100%;
         min-height: 44px;
+        font-size: 16px;
       }
       input[type="checkbox"] {
         width: 18px;
@@ -274,12 +294,26 @@
         border-radius: 8px;
         margin-bottom: 1rem;
       }
-      .filter-row label {
+      .filter-row label,
+      .term-filter-row {
         width: 100%;
         align-items: flex-start;
       }
+      .term-filter-row {
+        grid-template-columns: 1fr;
+        max-width: none;
+        gap: .35rem;
+      }
+      .term-filter-row > span { white-space: normal; }
+      .checkbox-filter-row {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: .65rem;
+      }
       .filter-row select {
-        margin-top: .35rem;
+        margin-top: 0;
+        min-width: 0;
+        font-size: 16px;
       }
       .result-header {
         display: block;
@@ -395,15 +429,18 @@
       <button type="submit" id="go">Search</button>
     </div>
   </form>
-  <div class="filter-row">
-    <label><input type="checkbox" id="standalone-only"> Standalone equivalents only (hide AND bundles)</label>
-    <label>
-      Check offerings for:
+  <div class="filter-row" aria-label="Result filters">
+    <label class="term-filter-row">
+      <span>Check online class offerings for:</span>
       <select id="term-filter">
-        <option value="">— skip (articulations only) —</option>
+        <option value="" id="term-skip-option">Skip - articulations only</option>
       </select>
     </label>
-    <label><input type="checkbox" id="async-only" disabled> Async online only</label>
+    <div class="checkbox-filter-row">
+      <label><input type="checkbox" id="standalone-only"> Standalone equivalents only (hide AND bundles)</label>
+      <label><input type="checkbox" id="combine-bundles" checked> Combine duplicate AND bundles</label>
+      <label><input type="checkbox" id="async-only" disabled> Async online only</label>
+    </div>
   </div>
 
   <div id="output"></div>

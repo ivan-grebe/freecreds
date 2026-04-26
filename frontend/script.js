@@ -3,10 +3,12 @@ const uniList = document.getElementById("uni-list");
 const courseInput = document.getElementById("course-input");
 const courseList = document.getElementById("course-list");
 const standaloneCheck = document.getElementById("standalone-only");
+const combineBundlesCheck = document.getElementById("combine-bundles");
 const termSel = document.getElementById("term-filter");
 const asyncCheck = document.getElementById("async-only");
 const form = document.getElementById("search-form");
 const output = document.getElementById("output");
+let lastResultsData = null;
 
 function el(tag, attrs = {}, children = []) {
   const e = document.createElement(tag);
@@ -341,6 +343,68 @@ function renderOfferingBadge(status) {
   return el("span", { class: "badge unknown" }, "unknown");
 }
 
+function offeringRank(status) {
+  if (status === "async_online") return 3;
+  if (status === "online_sync") return 2;
+  return 1;
+}
+
+function courseIdentity(c) {
+  return [
+    c.prefix || "",
+    c.number || "",
+    c.title || "",
+    c.min_units == null ? "" : String(c.min_units),
+    c.max_units == null ? "" : String(c.max_units),
+  ].map(s => String(s).trim().toUpperCase()).join("|");
+}
+
+function dedupeBundleRows(rows) {
+  const byBundle = new Map();
+  const out = [];
+  let hidden = 0;
+
+  for (const row of rows) {
+    if (row.is_standalone || !row.companion_courses || !row.companion_courses.length) {
+      out.push(row);
+      continue;
+    }
+
+    const requiredCourses = [row.cc_course, ...row.companion_courses]
+      .map(courseIdentity)
+      .sort()
+      .join(";");
+    const receivingCourses = (row.receiving_companion_courses || [])
+      .map(courseIdentity)
+      .sort()
+      .join(";");
+    const key = [
+      row.cc_code,
+      row.academic_year_id || "",
+      requiredCourses,
+      receivingCourses,
+    ].join("||");
+
+    const existing = byBundle.get(key);
+    if (!existing) {
+      byBundle.set(key, row);
+      out.push(row);
+      continue;
+    }
+
+    hidden += 1;
+    existing.sources = Array.from(new Set([...(existing.sources || []), ...(row.sources || [])]));
+    if (offeringRank(row.offering_status) > offeringRank(existing.offering_status)) {
+      existing.offering_status = row.offering_status;
+    }
+    if (!existing.schedule_url && row.schedule_url) {
+      existing.schedule_url = row.schedule_url;
+    }
+  }
+
+  return { rows: out, hidden };
+}
+
 function renderScheduleCell(r, termLabel) {
   if (!r.schedule_url) {
     return el("span", { class: "schedule-muted" }, "—");
@@ -363,25 +427,36 @@ function renderResults(data) {
                                 : `${q.university.name}: ${renderCourse(q.course)}`;
   output.appendChild(el("div", { class: "meta" }, headerMeta));
 
-  const n = data.results.length;
+  const bundleFilter = combineBundlesCheck ? combineBundlesCheck.checked : true;
+  const { rows: visibleResults, hidden: hiddenBundleRows } = bundleFilter
+    ? dedupeBundleRows(data.results.map(row => ({ ...row })))
+    : { rows: data.results, hidden: 0 };
+  const n = visibleResults.length;
   let headline;
   if (q.async_only) {
     headline = `Articulating colleges offering this course async online in ${termScope} (${n})`;
   } else if (termLabel) {
-    headline = `Articulating colleges offering this course in ${termLabel} (${n})`;
+    headline = `Articulating colleges offering this course online in ${termLabel} (${n})`;
   } else {
     headline = `Articulating community colleges (${n})`;
   }
   output.appendChild(el("div", { class: "result-header" }, [el("h2", {}, headline)]));
+  if (hiddenBundleRows) {
+    output.appendChild(el(
+      "div",
+      { class: "meta" },
+      `Combined ${hiddenBundleRows} duplicate AND-bundle ${hiddenBundleRows === 1 ? "row" : "rows"}.`,
+    ));
+  }
 
   const showOfferingCols = !!q.term;
 
-  if (!data.results.length) {
+  if (!visibleResults.length) {
     let msg;
     if (q.async_only) {
       msg = `No colleges confirmed to offer this course as async online in ${termScope}.`;
     } else if (termLabel) {
-      msg = `No colleges confirmed to offer this course in ${termLabel}. `
+      msg = `No colleges confirmed to offer this course online in ${termLabel}. `
         + `Pick "skip" above to see the full articulation list, `
         + "or click a schedule link to check a specific college.";
     } else {
@@ -389,7 +464,7 @@ function renderResults(data) {
     }
     output.appendChild(el("div", { class: "meta" }, msg));
   } else {
-    const maxYearId = data.results.reduce(
+    const maxYearId = visibleResults.reduce(
       (m, r) => Math.max(m, r.academic_year_id || 0), 0
     );
     const table = el("table");
@@ -404,7 +479,7 @@ function renderResults(data) {
     }
     table.appendChild(el("thead", {}, el("tr", {}, headerCells)));
     const tbody = el("tbody");
-    for (const r of data.results) {
+    for (const r of visibleResults) {
       const ccChildren = [
         r.cc_name,
         el("div", { class: "meta" }, r.cc_code),
@@ -492,6 +567,7 @@ async function runSearch() {
   if (standaloneCheck.checked) params.set("standalone_only", "true");
   if (termSel.value) params.set("term", termSel.value);
   if (asyncCheck.checked) params.set("async_only", "true");
+  lastResultsData = null;
   showOutput("meta", "Searching...");
 
   let res;
@@ -518,10 +594,16 @@ async function runSearch() {
     }
     return;
   }
+  lastResultsData = data;
   renderResults(data);
 }
 
 form.addEventListener("submit", (e) => { e.preventDefault(); runSearch(); });
+if (combineBundlesCheck) {
+  combineBundlesCheck.addEventListener("change", () => {
+    if (lastResultsData) renderResults(lastResultsData);
+  });
+}
 
 loadUniversities();
 loadTerms();

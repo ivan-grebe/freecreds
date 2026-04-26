@@ -1,6 +1,7 @@
 import type { CourseRow, InstitutionRow } from "../_shared/api-types";
 import { allRows, firstRow } from "../_shared/d1";
 import {
+  cachedResponse,
   error,
   type Env,
   json,
@@ -13,13 +14,24 @@ const UNIVERSITY_PARAM = {
   description: "an institution code such as CSUFULL",
 };
 
-export const onRequestGet: PagesFunction<Env> = async ({ env, request }) => {
+const COURSE_LIST_CACHE_SECONDS = 60 * 60 * 24;
+
+export const onRequestGet: PagesFunction<Env> = async ({ env, request, waitUntil }) => {
   const url = new URL(request.url);
   const university = requireStringParam(url, "university", UNIVERSITY_PARAM);
   if (university instanceof Response) {
     return university;
   }
 
+  return cachedResponse(
+    `courses/${encodeURIComponent(university)}`,
+    waitUntil,
+    COURSE_LIST_CACHE_SECONDS,
+    () => buildCourseResponse(env, university),
+  );
+};
+
+async function buildCourseResponse(env: Env, university: string): Promise<Response> {
   const uni = await firstRow<InstitutionRow>(
     env.DB.prepare(
       "SELECT id, code, name FROM institutions WHERE code = ? COLLATE NOCASE",
@@ -46,4 +58,4 @@ export const onRequestGet: PagesFunction<Env> = async ({ env, request }) => {
     university: { code: uni.code.trim(), name: uni.name },
     courses,
   });
-};
+}

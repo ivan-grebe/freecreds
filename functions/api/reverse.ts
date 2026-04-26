@@ -14,6 +14,7 @@ import {
   uniqueNumbers,
 } from "../_shared/d1";
 import {
+  cachedResponse,
   error,
   type Env,
   json,
@@ -29,6 +30,7 @@ const MODALITY_RANK: Record<string, number> = {
   online_sync: 2,
   online_async: 3,
 };
+const REVERSE_CACHE_SECONDS = 60 * 60 * 12;
 
 const UNIVERSITY_PARAM = {
   maxLength: 16,
@@ -380,12 +382,35 @@ function offeringKey(institutionId: number, prefix: string, number: string): str
   return `${institutionId}|${prefix.toUpperCase()}|${number.toUpperCase()}`;
 }
 
-export const onRequestGet: PagesFunction<Env> = async ({ env, request }) => {
+export const onRequestGet: PagesFunction<Env> = async ({ env, request, waitUntil }) => {
   const query = parseQuery(request);
   if (query instanceof Response) {
     return query;
   }
 
+  return cachedResponse(
+    reverseCacheKey(query),
+    waitUntil,
+    REVERSE_CACHE_SECONDS,
+    () => buildReverseResponse(env, query),
+  );
+};
+
+function reverseCacheKey(query: ReverseQuery): string {
+  const params = new URLSearchParams({
+    university: query.university,
+    prefix: query.prefix,
+    number: query.number,
+    standalone: query.standaloneOnly ? "1" : "0",
+    async: query.asyncOnly ? "1" : "0",
+  });
+  if (query.termCode) {
+    params.set("term", query.termCode);
+  }
+  return `reverse?${params.toString()}`;
+}
+
+async function buildReverseResponse(env: Env, query: ReverseQuery): Promise<Response> {
   const uni = await firstRow<InstitutionRow>(
     env.DB.prepare(
       "SELECT id, code, name FROM institutions WHERE code = ? COLLATE NOCASE",
@@ -474,4 +499,4 @@ export const onRequestGet: PagesFunction<Env> = async ({ env, request }) => {
       reason: row.no_articulation_reason,
     })),
   });
-};
+}

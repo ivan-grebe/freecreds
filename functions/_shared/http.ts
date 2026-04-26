@@ -22,6 +22,38 @@ export function json(data: unknown, init: ResponseInit = {}): Response {
   });
 }
 
+export async function cachedResponse(
+  key: string,
+  waitUntil: (promise: Promise<unknown>) => void,
+  ttlSeconds: number,
+  build: () => Promise<Response>,
+): Promise<Response> {
+  const cache = caches.default;
+  const cacheRequest = new Request(`https://freecreds.local/cache/${key}`);
+  const cached = await cache.match(cacheRequest);
+  if (cached) {
+    const hit = new Response(cached.body, cached);
+    hit.headers.set("x-freecreds-cache", "HIT");
+    return hit;
+  }
+
+  const response = await build();
+  if (!response.ok) {
+    return response;
+  }
+
+  const headers = new Headers(response.headers);
+  headers.set("cache-control", `public, max-age=${ttlSeconds}`);
+  headers.set("x-freecreds-cache", "MISS");
+  const cacheable = new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+  waitUntil(cache.put(cacheRequest, cacheable.clone()));
+  return cacheable;
+}
+
 export function error(status: number, message: string): Response {
   return json({ error: message } satisfies JsonError, { status });
 }
