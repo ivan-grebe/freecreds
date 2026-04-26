@@ -135,6 +135,99 @@ def _preferred_modality(existing: Optional[str], candidate: str) -> str:
     return existing
 
 
+def _resolve_requested_term(
+    conn: sqlite3.Connection,
+    requested_term: Optional[str],
+) -> Tuple[Optional[str], Optional[int], Optional[str]]:
+    """Return normalized (code, id, label) for a requested term.
+
+    Unknown-but-valid term codes are inserted on demand so subsequent
+    offering lookups can use the normal terms join path.
+    """
+    if not requested_term:
+        return None, None, None
+
+    code_norm = requested_term.strip().upper()
+    term_row = conn.execute(
+        "SELECT id, label FROM terms WHERE code = ?", (code_norm,)
+    ).fetchone()
+    if term_row:
+        return code_norm, term_row["id"], term_row["label"]
+
+    try:
+        parsed = parse_code(code_norm)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+
+    term_id = db.upsert_term(
+        conn,
+        code=parsed.code,
+        label=parsed.label,
+        season=parsed.season,
+        year=parsed.year,
+    )
+    conn.commit()
+    return parsed.code, term_id, parsed.label
+
+
+def _offering_key(row: sqlite3.Row) -> Tuple[int, str, str]:
+    return (row["cc_institution_id"], row["cc_prefix"].upper(), row["cc_number"].upper())
+
+
+def _query_offerings(
+    conn: sqlite3.Connection,
+    rows: List[sqlite3.Row],
+    query_term_ids: List[int],
+) -> Dict[Tuple[int, str, str], str]:
+    """Fetch offering modality for all reverse rows without per-row queries."""
+    offerings_map: Dict[Tuple[int, str, str], str] = {}
+    if not query_term_ids or not rows:
+        return offerings_map
+
+    offering_keys = sorted({_offering_key(r) for r in rows})
+    t_marks = ",".join(["?"] * len(query_term_ids))
+    # Keep under SQLite's common 999-variable limit while still letting the
+    # composite offerings index do point lookups.
+    max_keys_per_query = max(1, (900 - len(query_term_ids)) // 3)
+    for start in range(0, len(offering_keys), max_keys_per_query):
+        key_chunk = offering_keys[start:start + max_keys_per_query]
+        key_marks = ",".join(["(?, ?, ?)"] * len(key_chunk))
+        params: List[Any] = [*query_term_ids]
+        for inst_id, prefix_key, number_key in key_chunk:
+            params.extend([inst_id, prefix_key, number_key])
+        off_rows = conn.execute(
+            f"""SELECT institution_id, UPPER(prefix) AS prefix,
+                       UPPER(number) AS number, modality
+                FROM class_offerings
+                WHERE term_id IN ({t_marks})
+                  AND (institution_id, prefix, number) IN (VALUES {key_marks})""",
+            params,
+        ).fetchall()
+        for o in off_rows:
+            key = (o["institution_id"], o["prefix"], o["number"])
+            offerings_map[key] = _preferred_modality(
+                offerings_map.get(key), o["modality"]
+            )
+    return offerings_map
+
+
+def _parse_id_list(value: Optional[str]) -> List[int]:
+    # Keep behavior aligned with parseCompanionIds in functions/api/reverse.ts.
+    if not value:
+        return []
+    try:
+        parsed = json.loads(value)
+    except ValueError:
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [
+        item
+        for item in parsed
+        if isinstance(item, int) and not isinstance(item, bool)
+    ]
+
+
 @app.get("/api/reverse")
 def reverse_lookup(
     university: str = Query(..., description="Institution code"),
@@ -183,38 +276,7 @@ def reverse_lookup(
         ).fetchone()
         year_id = year_row["year_id"] if year_row else None
 
-        # Resolve the requested term (if any) to an ID for the offerings join.
-        # If the terms table doesn't yet have this code — typical when the
-        # server was started before the upcoming-terms seed ran, or when a
-        # client asks for a term outside the rolling 4-term window — parse
-        # the code ourselves and upsert it so the rest of the path works.
-        term_code: Optional[str] = None
-        term_id: Optional[int] = None
-        term_label: Optional[str] = None
-        if term:
-            code_norm = term.strip().upper()
-            term_code = code_norm
-            term_row = conn.execute(
-                "SELECT id, label FROM terms WHERE code = ?", (code_norm,)
-            ).fetchone()
-            if term_row:
-                term_id = term_row["id"]
-                term_label = term_row["label"]
-            else:
-                try:
-                    parsed = parse_code(code_norm)
-                except ValueError as e:
-                    raise HTTPException(400, str(e)) from e
-                term_id = db.upsert_term(
-                    conn,
-                    code=parsed.code,
-                    label=parsed.label,
-                    season=parsed.season,
-                    year=parsed.year,
-                )
-                term_code = parsed.code
-                term_label = parsed.label
-                conn.commit()
+        term_code, term_id, term_label = _resolve_requested_term(conn, term)
 
         # Articulating CCs. GROUP BY the articulation path so the same path
         # that appears under multiple sources (AllDepartments + AllMajors)
@@ -264,49 +326,14 @@ def reverse_lookup(
                 r[0] for r in conn.execute("SELECT id FROM terms").fetchall()
             ]
 
-        offerings_map: Dict[Tuple[int, str, str], str] = {}
-        if query_term_ids and rows:
-            offering_keys = sorted({
-                (
-                    r["cc_institution_id"],
-                    r["cc_prefix"].upper(),
-                    r["cc_number"].upper(),
-                )
-                for r in rows
-            })
-            t_marks = ",".join(["?"] * len(query_term_ids))
-            # Keep under SQLite's common 999-variable limit while still
-            # letting the composite offerings index do point lookups.
-            max_keys_per_query = max(1, (900 - len(query_term_ids)) // 3)
-            for start in range(0, len(offering_keys), max_keys_per_query):
-                key_chunk = offering_keys[start:start + max_keys_per_query]
-                key_marks = ",".join(["(?, ?, ?)"] * len(key_chunk))
-                params: List[Any] = [*query_term_ids]
-                for inst_id, prefix_key, number_key in key_chunk:
-                    params.extend([inst_id, prefix_key, number_key])
-                off_rows = conn.execute(
-                    f"""SELECT institution_id, UPPER(prefix) AS prefix,
-                               UPPER(number) AS number, modality
-                        FROM class_offerings
-                        WHERE term_id IN ({t_marks})
-                          AND (institution_id, prefix, number) IN (VALUES {key_marks})""",
-                    params,
-                ).fetchall()
-                for o in off_rows:
-                    key = (o["institution_id"], o["prefix"], o["number"])
-                    offerings_map[key] = _preferred_modality(
-                        offerings_map.get(key), o["modality"]
-                    )
+        offerings_map = _query_offerings(conn, rows, query_term_ids)
 
         results: List[Dict[str, Any]] = []
         all_course_ids: Set[int] = set()
         parsed_rows: List[Tuple[sqlite3.Row, List[int], List[int]]] = []
         for r in rows:
-            comps = json.loads(r["companion_course_ids"]) if r["companion_course_ids"] else []
-            recv_comps = (
-                json.loads(r["receiving_companion_course_ids"])
-                if r["receiving_companion_course_ids"] else []
-            )
+            comps = _parse_id_list(r["companion_course_ids"])
+            recv_comps = _parse_id_list(r["receiving_companion_course_ids"])
             all_course_ids.update(comps)
             all_course_ids.update(recv_comps)
             parsed_rows.append((r, comps, recv_comps))
@@ -323,7 +350,7 @@ def reverse_lookup(
                 course_map[cr["id"]] = _course_row_to_obj(cr)
 
         for r, comps, recv_comps in parsed_rows:
-            key = (r["cc_institution_id"], r["cc_prefix"].upper(), r["cc_number"].upper())
+            key = _offering_key(r)
             modality = offerings_map.get(key) if query_term_ids else None
             # Per-row status only has meaning when the user picked a specific term.
             # In "Any term" mode we still use modality for filtering, but the UI

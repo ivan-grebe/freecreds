@@ -138,3 +138,29 @@ def test_reverse_lookup_term_filter_uses_matching_course(client: TestClient):
     data = response.json()
     assert [row["cc_code"] for row in data["results"]] == ["NEWCC"]
     assert data["results"][0]["offering_status"] == "async_online"
+
+
+def test_reverse_lookup_ignores_malformed_companion_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    db_path = tmp_path / "assist.db"
+    _seed_reverse_lookup_db(db_path)
+    conn = db.connect(db_path)
+    conn.execute(
+        """UPDATE reverse_index
+           SET companion_course_ids = ?, receiving_companion_course_ids = ?
+           WHERE academic_year_id = 76""",
+        ("not json", "[true, 123]"),
+    )
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(api, "DB_PATH", db_path)
+
+    with TestClient(api.app) as test_client:
+        response = test_client.get("/api/reverse?university=CSUFULL&prefix=MATH&number=170A")
+
+    assert response.status_code == 200
+    row = response.json()["results"][0]
+    assert row["companion_courses"] == []
+    assert row["receiving_companion_courses"] == [{"id": 123}]
