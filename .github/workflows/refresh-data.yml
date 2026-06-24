@@ -79,6 +79,21 @@ jobs:
           python -m pip install -e .
           npm ci
 
+      - name: Verify Cloudflare D1 import access
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        shell: bash
+        run: |
+          printf '%s\n' \
+            'CREATE TABLE IF NOT EXISTS _refresh_auth_check (id INTEGER PRIMARY KEY);' \
+            'DROP TABLE _refresh_auth_check;' \
+            > d1_auth_check.sql
+          npx wrangler d1 execute "$D1_DATABASE_NAME" \
+            --remote \
+            --file d1_auth_check.sql \
+            --yes
+
       - name: Reset local SQLite workspace
         shell: bash
         run: |
