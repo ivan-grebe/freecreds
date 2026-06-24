@@ -1,0 +1,249 @@
+name: Refresh Cloudflare D1 data
+
+on:
+  repository_dispatch:
+    types:
+      - freecreds-cvc-refresh
+      - freecreds-assist-refresh
+  workflow_dispatch:
+    inputs:
+      job:
+        description: Refresh job to run
+        required: true
+        default: cvc
+        type: choice
+        options:
+          - cvc
+          - assist
+      enqueue_cvc_after_assist:
+        description: Queue a separate CVC refresh after a successful ASSIST refresh
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: freecreds-d1-refresh
+  cancel-in-progress: false
+
+env:
+  D1_DATABASE_NAME: freecreds-db-v2
+  EVENT_ACTION: ${{ github.event.action }}
+  PAYLOAD_KIND: ${{ github.event.client_payload.kind }}
+  PAYLOAD_JOB_ID: ${{ github.event.client_payload.job_id }}
+  PAYLOAD_ENQUEUE_CVC: ${{ github.event.client_payload.enqueue_cvc }}
+  INPUT_JOB: ${{ inputs.job }}
+  INPUT_ENQUEUE_CVC: ${{ inputs.enqueue_cvc_after_assist }}
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+
+      - name: Select refresh job
+        id: refresh
+        shell: bash
+        run: |
+          KIND="${PAYLOAD_KIND:-$INPUT_JOB}"
+          if [[ -z "$KIND" ]]; then
+            case "$EVENT_ACTION" in
+              freecreds-cvc-refresh) KIND="cvc" ;;
+              freecreds-assist-refresh) KIND="assist" ;;
+            esac
+          fi
+          if [[ "$KIND" != "cvc" && "$KIND" != "assist" ]]; then
+            echo "Unsupported refresh kind: $KIND" >&2
+            exit 1
+          fi
+
+          ENQUEUE_CVC="${PAYLOAD_ENQUEUE_CVC:-$INPUT_ENQUEUE_CVC}"
+          case "$ENQUEUE_CVC" in
+            true|True|TRUE|1|yes|Yes|YES) ENQUEUE_CVC="true" ;;
+            *) ENQUEUE_CVC="false" ;;
+          esac
+
+          JOB_ID="$PAYLOAD_JOB_ID"
+          if [[ -n "$JOB_ID" && ! "$JOB_ID" =~ ^[A-Za-z0-9._:-]+$ ]]; then
+            echo "Invalid job ID" >&2
+            exit 1
+          fi
+
+          echo "kind=$KIND" >> "$GITHUB_OUTPUT"
+          echo "enqueue_cvc_after_assist=$ENQUEUE_CVC" >> "$GITHUB_OUTPUT"
+          echo "job_id=$JOB_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.11"
+
+      - name: Set up Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sqlite3
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+          npm ci
+
+      - name: Verify Cloudflare D1 import access
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        shell: bash
+        run: |
+          printf '%s\n' \
+            'CREATE TABLE IF NOT EXISTS _refresh_auth_check (id INTEGER PRIMARY KEY);' \
+            'DROP TABLE _refresh_auth_check;' \
+            > d1_auth_check.sql
+          npx wrangler d1 execute "$D1_DATABASE_NAME" \
+            --remote \
+            --file d1_auth_check.sql \
+            --yes
+
+      - name: Reset local SQLite workspace
+        shell: bash
+        run: |
+          mkdir -p data
+          rm -f data/assist.db data/assist.db-wal data/assist.db-shm data/assist.db-journal
+
+      - name: Determine CVC terms
+        id: terms
+        shell: bash
+        run: |
+          TERMS="$(python - <<'PY'
+          from datetime import date
+          from src.terms import upcoming_terms
+          print(",".join(t.code for t in upcoming_terms(date.today(), count=4)))
+          PY
+          )"
+          echo "codes=$TERMS" >> "$GITHUB_OUTPUT"
+
+      - name: Export CVC base tables from private D1
+        if: steps.refresh.outputs.kind == 'cvc'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from src import db
+
+          connection = db.connect(Path("data/assist.db"))
+          try:
+              db.init_db(connection)
+              connection.commit()
+          finally:
+              connection.close()
+          PY
+          npx wrangler d1 export "$D1_DATABASE_NAME" \
+            --remote \
+            --output d1_cvc_base.sql \
+            --table institutions \
+            --table courses \
+            --table terms \
+            --no-schema
+          sqlite3 data/assist.db < d1_cvc_base.sql
+
+      - name: Refresh ASSIST articulations
+        if: steps.refresh.outputs.kind == 'assist'
+        run: python -m src.ingester --all
+
+      - name: Refresh CVC offerings
+        if: steps.refresh.outputs.kind == 'cvc'
+        run: python -m src.cvc_fetcher --terms "${{ steps.terms.outputs.codes }}"
+
+      - name: Apply schedule URLs and seed upcoming terms
+        run: |
+          python - <<'PY'
+          from datetime import date
+          from pathlib import Path
+          from src import db
+          from src.schedule_urls import apply_schedule_urls
+          from src.terms import upcoming_terms
+
+          connection = db.connect(Path("data/assist.db"))
+          try:
+              db.init_db(connection)
+              apply_schedule_urls(connection)
+              for term in upcoming_terms(date.today(), count=4):
+                  db.upsert_term(
+                      connection,
+                      code=term.code,
+                      label=term.label,
+                      season=term.season,
+                      year=term.year,
+                  )
+              connection.commit()
+          finally:
+              connection.close()
+          PY
+
+      - name: Import CVC offerings into D1
+        if: steps.refresh.outputs.kind == 'cvc'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          node scripts/dump-cvc-for-d1.mjs data/assist.db d1_cvc_import "${{ steps.terms.outputs.codes }}"
+          node scripts/import-d1-chunks.mjs d1_cvc_import "$D1_DATABASE_NAME"
+
+      - name: Import full ASSIST data into D1
+        if: steps.refresh.outputs.kind == 'assist'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          node scripts/dump-sqlite-for-d1.mjs data/assist.db d1_import
+          node scripts/import-d1-chunks.mjs d1_import "$D1_DATABASE_NAME"
+
+      - name: Queue CVC refresh after ASSIST
+        if: steps.refresh.outputs.kind == 'assist' && steps.refresh.outputs.enqueue_cvc_after_assist == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        shell: bash
+        run: |
+          CVC_JOB_ID="cvc-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          NOW="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          cat > cvc_job.sql <<SQL
+          INSERT INTO ingest_jobs
+            (id, kind, status, requested_by, started_at, metadata)
+          VALUES
+            ('$CVC_JOB_ID', 'cvc', 'dispatched', 'assist-refresh', '$NOW',
+             '{"dispatch_target":"github_repository_dispatch","parent_run_id":"${GITHUB_RUN_ID}"}');
+          SQL
+          npx wrangler d1 execute "$D1_DATABASE_NAME" --remote --file cvc_job.sql --yes
+          curl -fsSL \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/dispatches" \
+            -d "{\"event_type\":\"freecreds-cvc-refresh\",\"client_payload\":{\"kind\":\"cvc\",\"job_id\":\"$CVC_JOB_ID\",\"requested_by\":\"assist-refresh\"}}"
+
+      - name: Mark ingest job completed
+        if: steps.refresh.outputs.job_id != ''
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          JOB_ID: ${{ steps.refresh.outputs.job_id }}
+        shell: bash
+        run: |
+          NOW="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          printf "UPDATE ingest_jobs SET status = 'completed', finished_at = '%s' WHERE id = '%s';\n" "$NOW" "$JOB_ID" > job_done.sql
+          npx wrangler d1 execute "$D1_DATABASE_NAME" --remote --file job_done.sql --yes

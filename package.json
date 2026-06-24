@@ -1,0 +1,30 @@
+{
+  "name": "freecreds",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "cf:dev": "wrangler pages dev frontend --d1 DB",
+    "cf:deploy": "wrangler pages deploy frontend --project-name freecreds",
+    "cf:deploy:refresh": "wrangler deploy --config wrangler.refresh.toml",
+    "cf:typecheck": "tsc --noEmit",
+    "cf:db:create": "wrangler d1 create freecreds-db-v2",
+    "cf:db:schema": "wrangler d1 migrations apply freecreds-db-v2 --remote",
+    "cf:db:dump": "node scripts/dump-sqlite-for-d1.mjs data/assist.db d1_import",
+    "cf:db:dump:cvc": "node scripts/dump-cvc-for-d1.mjs data/assist.db d1_cvc_import",
+    "cf:build:universities": "node scripts/build-universities-json.mjs",
+    "cf:db:split": "node scripts/split-d1-import.mjs d1_import",
+    "cf:db:import": "node scripts/import-d1-chunks.mjs d1_import freecreds-db-v2",
+    "test:py": "pytest",
+    "test:ts": "vitest run",
+    "lint:py": "ruff check src tests scripts/check_migrations.py",
+    "check:migrations": "python scripts/check_migrations.py",
+    "check": "npm run lint:py && npm run test:py && npm run cf:typecheck && npm run test:ts && npm run check:migrations"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260624.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9",
+    "wrangler": "^4.104.0"
+  }
+}

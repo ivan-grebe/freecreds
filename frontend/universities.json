@@ -1,0 +1,274 @@
+{
+  "universities": [
+    {
+      "code": "APU",
+      "name": "Azusa Pacific University",
+      "category": "AICCU"
+    },
+    {
+      "code": "CBU",
+      "name": "California Baptist University",
+      "category": "AICCU"
+    },
+    {
+      "code": "CLU",
+      "name": "California Lutheran University",
+      "category": "AICCU"
+    },
+    {
+      "code": "CDU",
+      "name": "Charles R. Drew University of Medicine and Science",
+      "category": "AICCU"
+    },
+    {
+      "code": "CUI",
+      "name": "Concordia University Irvine",
+      "category": "AICCU"
+    },
+    {
+      "code": "DUC",
+      "name": "Dominican University of California",
+      "category": "AICCU"
+    },
+    {
+      "code": "FPU",
+      "name": "Fresno Pacific University",
+      "category": "AICCU"
+    },
+    {
+      "code": "LASIERRA",
+      "name": "La Sierra University",
+      "category": "AICCU"
+    },
+    {
+      "code": "LMU",
+      "name": "Loyola Marymount University",
+      "category": "AICCU"
+    },
+    {
+      "code": "MENLO",
+      "name": "Menlo College",
+      "category": "AICCU"
+    },
+    {
+      "code": "MSMU",
+      "name": "Mount Saint Mary's University Los Angeles",
+      "category": "AICCU"
+    },
+    {
+      "code": "NU",
+      "name": "National University",
+      "category": "AICCU"
+    },
+    {
+      "code": "PEPRDN",
+      "name": "Pepperdine University",
+      "category": "AICCU"
+    },
+    {
+      "code": "SMC",
+      "name": "Saint Mary's College of California",
+      "category": "AICCU"
+    },
+    {
+      "code": "SU",
+      "name": "Simpson University",
+      "category": "AICCU"
+    },
+    {
+      "code": "TUW",
+      "name": "Touro University Worldwide",
+      "category": "AICCU"
+    },
+    {
+      "code": "UOFR",
+      "name": "University of Redlands",
+      "category": "AICCU"
+    },
+    {
+      "code": "USD",
+      "name": "University of San Diego",
+      "category": "AICCU"
+    },
+    {
+      "code": "USFCA",
+      "name": "University of San Francisco",
+      "category": "AICCU"
+    },
+    {
+      "code": "UOP",
+      "name": "University of the Pacific",
+      "category": "AICCU"
+    },
+    {
+      "code": "VUSC",
+      "name": "Vanguard University of Southern California",
+      "category": "AICCU"
+    },
+    {
+      "code": "WC",
+      "name": "Whittier College",
+      "category": "AICCU"
+    },
+    {
+      "code": "HSU",
+      "name": "California Polytechnic University, Humboldt",
+      "category": "CSU"
+    },
+    {
+      "code": "CPP",
+      "name": "California Polytechnic University, Pomona",
+      "category": "CSU"
+    },
+    {
+      "code": "CPSLO",
+      "name": "California Polytechnic University, San Luis Obispo",
+      "category": "CSU"
+    },
+    {
+      "code": "CSUB",
+      "name": "California State University, Bakersfield",
+      "category": "CSU"
+    },
+    {
+      "code": "CSUCI",
+      "name": "California State University, Channel Islands",
+      "category": "CSU"
+    },
+    {
+      "code": "CSUC",
+      "name": "California State University, Chico",
+      "category": "CSU"
+    },
+    {
+      "code": "CSUDH",
+      "name": "California State University, Dominguez Hills",
+      "category": "CSU"
+    },
+    {
+      "code": "CSUHAY",
+      "name": "California State University, East Bay",
+      "category": "CSU"
+    },
+    {
+      "code": "CSUFRES",
+      "name": "California State University, Fresno",
+      "category": "CSU"
+    },
+    {
+      "code": "CSUFULL",
+      "name": "California State University, Fullerton",
+      "category": "CSU"
+    },
+    {
+      "code": "CSULB",
+      "name": "California State University, Long Beach",
+      "category": "CSU"
+    },
+    {
+      "code": "CSULA",
+      "name": "California State University, Los Angeles",
+      "category": "CSU"
+    },
+    {
+      "code": "CSUMA",
+      "name": "California State University, Maritime Academy",
+      "category": "CSU"
+    },
+    {
+      "code": "CSUMB",
+      "name": "California State University, Monterey Bay",
+      "category": "CSU"
+    },
+    {
+      "code": "CSUN",
+      "name": "California State University, Northridge",
+      "category": "CSU"
+    },
+    {
+      "code": "CSUS",
+      "name": "California State University, Sacramento",
+      "category": "CSU"
+    },
+    {
+      "code": "CSUSB",
+      "name": "California State University, San Bernardino",
+      "category": "CSU"
+    },
+    {
+      "code": "CSUSM",
+      "name": "California State University, San Marcos",
+      "category": "CSU"
+    },
+    {
+      "code": "CSUSTAN",
+      "name": "California State University, Stanislaus",
+      "category": "CSU"
+    },
+    {
+      "code": "SDSU",
+      "name": "San Diego State University",
+      "category": "CSU"
+    },
+    {
+      "code": "SFSU",
+      "name": "San Francisco State University",
+      "category": "CSU"
+    },
+    {
+      "code": "SJSU",
+      "name": "San Jose State University",
+      "category": "CSU"
+    },
+    {
+      "code": "SSU",
+      "name": "Sonoma State University",
+      "category": "CSU"
+    },
+    {
+      "code": "UCB",
+      "name": "University of California, Berkeley",
+      "category": "UC"
+    },
+    {
+      "code": "UCD",
+      "name": "University of California, Davis",
+      "category": "UC"
+    },
+    {
+      "code": "UCI",
+      "name": "University of California, Irvine",
+      "category": "UC"
+    },
+    {
+      "code": "UCLA",
+      "name": "University of California, Los Angeles",
+      "category": "UC"
+    },
+    {
+      "code": "UCM",
+      "name": "University of California, Merced",
+      "category": "UC"
+    },
+    {
+      "code": "UCR",
+      "name": "University of California, Riverside",
+      "category": "UC"
+    },
+    {
+      "code": "UCSD",
+      "name": "University of California, San Diego",
+      "category": "UC"
+    },
+    {
+      "code": "UCSB",
+      "name": "University of California, Santa Barbara",
+      "category": "UC"
+    },
+    {
+      "code": "UCSC",
+      "name": "University of California, Santa Cruz",
+      "category": "UC"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+name = "freecreds-refresh"
+main = "workers/refresh.ts"
+compatibility_date = "2026-04-22"
+migrations_dir = "migrations"
+
+# Cloudflare cron expressions are UTC.
+# - CVC: roughly twice monthly.
+# ASSIST refresh remains manual on the free-plan setup because a full
+# articulation import writes millions of rows.
+[triggers]
+crons = [
+  "0 9 1,15 * *"
+]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "freecreds-db-v2"
+database_id = "13d9a1dc-31fb-4f15-ae35-1c6f96677b05"

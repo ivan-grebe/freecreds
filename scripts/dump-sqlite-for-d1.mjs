@@ -1,0 +1,284 @@
+#!/usr/bin/env node
+import { spawn } from "node:child_process";
+import { createWriteStream, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { createInterface } from "node:readline";
+
+const MAX_PART_BYTES = Number(process.env.D1_IMPORT_PART_BYTES || 4_000_000_000);
+const MAX_PART_INSERTS = Number(process.env.D1_IMPORT_PART_INSERTS || 250_000);
+
+const DELETE_ORDER = [
+  "class_offerings",
+  "cross_listings",
+  "reverse_index",
+  "articulation_group_members",
+  "articulation_course_groups",
+  "articulations",
+  "courses",
+  "terms",
+  "institutions",
+];
+
+const EXPORTS = [
+  {
+    table: "institutions",
+    sql: `
+      SELECT id, assist_id, ${clean("code")}, ${clean("name")},
+             ${clean("category")}, ${clean("term_type")}, ${clean("schedule_url")}
+      FROM institutions
+      ORDER BY id;
+    `,
+  },
+  {
+    table: "courses",
+    sql: `
+      SELECT id, institution_id, course_identifier_parent_id,
+             ${clean("prefix")}, ${clean("number")}, ${clean("title")},
+             min_units, max_units, is_terminated
+      FROM courses
+      ORDER BY id;
+    `,
+  },
+  {
+    table: "terms",
+    sql: `
+      SELECT id, ${clean("code")}, ${clean("label")}, ${clean("season")},
+             year, ${clean("start_date")}, ${clean("end_date")}
+      FROM terms
+      ORDER BY id;
+    `,
+  },
+  {
+    table: "articulations",
+    sql: `
+      WITH runtime_articulations AS (
+        SELECT receiving_course_id,
+               university_id AS sending_cc_id,
+               university_id,
+               academic_year_id,
+               'RuntimeCourseYear' AS source_context,
+               NULL AS no_articulation_reason
+        FROM articulations
+        GROUP BY receiving_course_id, university_id, academic_year_id
+        UNION ALL
+        SELECT a.receiving_course_id,
+               a.sending_cc_id,
+               a.university_id,
+               a.academic_year_id,
+               ${clean("a.source_context")} AS source_context,
+               ${clean("a.no_articulation_reason")} AS no_articulation_reason
+        FROM articulations a
+        WHERE a.no_articulation_reason IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM reverse_index ri
+            WHERE ri.receiving_course_id = a.receiving_course_id
+              AND ri.sending_cc_id = a.sending_cc_id
+              AND ri.academic_year_id = a.academic_year_id
+          )
+      )
+      SELECT row_number() OVER (
+               ORDER BY receiving_course_id, sending_cc_id, academic_year_id, source_context
+             ) AS id,
+             receiving_course_id, sending_cc_id, university_id,
+             academic_year_id, source_context, no_articulation_reason
+      FROM runtime_articulations;
+    `,
+  },
+  {
+    table: "reverse_index",
+    sql: `
+      SELECT row_number() OVER (
+               ORDER BY receiving_course_id, sending_cc_id, sending_course_id,
+                        is_standalone_equivalent, companion_course_ids,
+                        academic_year_id, receiving_companion_course_ids
+             ) AS id,
+             receiving_course_id, sending_cc_id, sending_course_id,
+             is_standalone_equivalent, ${clean("companion_course_ids")},
+             academic_year_id, GROUP_CONCAT(DISTINCT ${clean("source_context")}),
+             ${clean("receiving_companion_course_ids")}
+      FROM reverse_index
+      GROUP BY receiving_course_id, sending_cc_id, sending_course_id,
+               is_standalone_equivalent, companion_course_ids,
+               academic_year_id, receiving_companion_course_ids;
+    `,
+  },
+  {
+    table: "class_offerings",
+    sql: `
+      SELECT id, institution_id, course_id, ${clean("prefix")},
+             ${clean("number")}, term_id, ${clean("modality")},
+             ${clean("source")}, ${clean("source_ref")}, ${clean("fetched_at")}
+      FROM class_offerings
+      ORDER BY id;
+    `,
+  },
+];
+
+const [inputArg = "data/assist.db", outputArg = "d1_import"] = process.argv.slice(2);
+const inputPath = resolve(inputArg);
+const outputDir = resolve(outputArg.replace(/\.sql$/i, ""));
+const manifestPath = join(outputDir, "manifest.json");
+
+if (!existsSync(inputPath)) {
+  console.error(`SQLite database not found: ${inputPath}`);
+  process.exit(1);
+}
+
+function clean(column) {
+  return `replace(replace(replace(${column}, char(9), ' '), char(10), ' '), char(13), ' ')`;
+}
+
+function exportScript() {
+  const commands = [
+    ".headers off",
+    ".nullvalue NULL",
+  ];
+  for (const item of EXPORTS) {
+    commands.push(`.mode insert ${item.table}`);
+    commands.push(item.sql);
+  }
+  return `${commands.join("\n")}\n`;
+}
+
+function byteLength(line) {
+  return Buffer.byteLength(`${line}\n`, "utf8");
+}
+
+function writeLine(stream, line) {
+  return new Promise((resolveWrite) => {
+    if (stream.write(`${line}\n`)) {
+      resolveWrite();
+    } else {
+      stream.once("drain", resolveWrite);
+    }
+  });
+}
+
+function isInsert(line) {
+  return /^INSERT INTO "?[A-Za-z_][A-Za-z0-9_]*"?\s+VALUES/i.test(line.trim());
+}
+
+async function closePart(part) {
+  if (!part) return;
+  part.stream.end();
+  await new Promise((resolveFinish) => part.stream.on("finish", resolveFinish));
+}
+
+async function main() {
+  mkdirSync(outputDir, { recursive: true });
+
+  const sqlite = spawn("sqlite3", [inputPath], {
+    stdio: ["pipe", "pipe", "pipe"],
+    shell: process.platform === "win32",
+  });
+
+  sqlite.on("error", (err) => {
+    console.error(
+      "Failed to run sqlite3. Install the SQLite CLI, then rerun this script.",
+    );
+    console.error(err.message);
+    process.exit(1);
+  });
+
+  sqlite.stdin.end(exportScript());
+
+  let stderr = "";
+  sqlite.stderr.setEncoding("utf8");
+  sqlite.stderr.on("data", (chunk) => {
+    stderr += chunk;
+  });
+  const closePromise = new Promise((resolveClose) => {
+    sqlite.once("close", resolveClose);
+  });
+
+  const parts = [];
+  let insertCount = 0;
+  let partNumber = 0;
+  let part = null;
+
+  async function openPart() {
+    partNumber += 1;
+    const filename = `part-${String(partNumber).padStart(3, "0")}.sql`;
+    const filePath = join(outputDir, filename);
+    const stream = createWriteStream(filePath, { encoding: "utf8" });
+    const next = { filename, filePath, stream, bytes: 0 };
+
+    for (const line of [
+      "-- Generated by scripts/dump-sqlite-for-d1.mjs",
+      "-- Apply migrations/0001_schema.sql before importing these files.",
+    ]) {
+      await writeLine(stream, line);
+      next.bytes += byteLength(line);
+    }
+
+    if (partNumber === 1) {
+      for (const table of DELETE_ORDER) {
+        const line = `DELETE FROM ${table};`;
+        await writeLine(stream, line);
+        next.bytes += byteLength(line);
+      }
+    }
+
+    parts.push({ filename, inserts: 0, bytes: 0 });
+    return next;
+  }
+
+  part = await openPart();
+
+  const lines = createInterface({
+    input: sqlite.stdout,
+    crlfDelay: Infinity,
+  });
+
+  for await (const line of lines) {
+    if (!isInsert(line)) {
+      continue;
+    }
+
+    const needed = byteLength(line);
+    const currentPart = parts.at(-1);
+    if (
+      (part.bytes + needed > MAX_PART_BYTES || currentPart.inserts >= MAX_PART_INSERTS)
+      && currentPart.inserts > 0
+    ) {
+      parts.at(-1).bytes = part.bytes;
+      await closePart(part);
+      part = await openPart();
+    }
+
+    await writeLine(part.stream, line);
+    part.bytes += byteLength(line);
+    insertCount += 1;
+    parts.at(-1).inserts += 1;
+
+    if (insertCount % 100_000 === 0) {
+      console.error(`dumped ${insertCount.toLocaleString()} rows...`);
+    }
+  }
+
+  const exitCode = await closePromise;
+
+  parts.at(-1).bytes = part.bytes;
+  await closePart(part);
+
+  if (exitCode !== 0) {
+    console.error(stderr || "sqlite3 export failed");
+    process.exit(typeof exitCode === "number" ? exitCode : 1);
+  }
+
+  writeFileSync(
+    manifestPath,
+    JSON.stringify({
+      input: inputPath,
+      max_part_bytes: MAX_PART_BYTES,
+      max_part_inserts: MAX_PART_INSERTS,
+      parts,
+    }, null, 2),
+    "utf8",
+  );
+
+  console.log(`Wrote ${insertCount.toLocaleString()} INSERT statements to ${outputDir}`);
+  console.log(`Created ${parts.length} import file(s); manifest: ${manifestPath}`);
+}
+
+await main();
