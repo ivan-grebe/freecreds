@@ -24,7 +24,12 @@ function el(tag, attrs = {}, children = []) {
 }
 
 function showOutput(className, message) {
-  output.replaceChildren(el("div", { class: className }, message));
+  const children = [];
+  if (className.includes("loading-state")) {
+    children.push(el("span", { class: "spinner", "aria-hidden": "true" }));
+  }
+  children.push(message);
+  output.replaceChildren(el("div", { class: className }, children));
 }
 
 // --- University dropdown ---
@@ -479,6 +484,7 @@ function renderResults(data) {
     }
     table.appendChild(el("thead", {}, el("tr", {}, headerCells)));
     const tbody = el("tbody");
+    let rowIndex = 0;
     for (const r of visibleResults) {
       const ccChildren = [
         r.cc_name,
@@ -519,7 +525,10 @@ function renderResults(data) {
         cells.push(el("td", { "data-label": "Offered" }, renderOfferingBadge(r.offering_status)));
         cells.push(el("td", { "data-label": "Schedule" }, renderScheduleCell(r, termLabel)));
       }
-      tbody.appendChild(el("tr", {}, cells));
+      const row = el("tr", {}, cells);
+      row.style.animationDelay = `${Math.min(rowIndex, 6) * 55}ms`;
+      tbody.appendChild(row);
+      rowIndex += 1;
     }
     table.appendChild(tbody);
     output.appendChild(table);
@@ -568,7 +577,7 @@ async function runSearch() {
   if (termSel.value) params.set("term", termSel.value);
   if (asyncCheck.checked) params.set("async_only", "true");
   lastResultsData = null;
-  showOutput("meta", "Searching...");
+  showOutput("meta loading-state", "Searching...");
 
   let res;
   let data;
@@ -624,7 +633,11 @@ loadTerms();
     return media && media.matches ? "dark" : "light";
   }
   function refreshLabel() {
-    btn.textContent = effectiveTheme() === "dark" ? "Light mode" : "Dark mode";
+    const theme = effectiveTheme();
+    root.setAttribute("data-effective-theme", theme);
+    const label = btn.querySelector(".theme-label");
+    if (label) label.textContent = theme === "dark" ? "Light mode" : "Dark mode";
+    btn.setAttribute("aria-label", theme === "dark" ? "Switch to light mode" : "Switch to dark mode");
   }
   btn.addEventListener("click", () => {
     const next = effectiveTheme() === "dark" ? "light" : "dark";
