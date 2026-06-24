@@ -17,6 +17,7 @@ from src.cvc_fetcher import (
     ensure_term,
     has_next_page,
     parse_home_college_options,
+    parse_session_names,
     parse_search_html,
     write_offerings,
 )
@@ -158,6 +159,38 @@ def test_parse_home_college_options():
     assert len(opts) > 50
     names = {name for _, name in opts}
     assert "Santa Monica College" in names or "Coalinga College" in names
+
+
+def test_parse_session_names():
+    html = """
+    <input name="filter[session_names][]" value="Spring 2026" type="checkbox">
+    <input type="checkbox" value="Summer 2026" name="filter[session_names][]">
+    <input name="something_else" value="Fall 2099">
+    """
+    assert parse_session_names(html) == {"Spring 2026", "Summer 2026"}
+
+
+def test_available_session_names():
+    class FakeResponse:
+        status_code = 200
+        text = """
+        <input name="filter[session_names][]" value="Summer 2026">
+        <input name="filter[session_names][]" value="Fall 2026">
+        """
+
+    class FakeHttpClient:
+        def get(self, url, *, params):
+            assert url == "https://search.cvc.edu/search"
+            assert ("filter[university_id]", CVC_HOME_UNIVERSITY_ID) in params
+            assert ("filter[subject]", "math") in params
+            return FakeResponse()
+
+    client = CVCClient.__new__(CVCClient)
+    client.base_url = "https://search.cvc.edu"
+    client._client = FakeHttpClient()
+    client._last_request_at = 0.0
+
+    assert client.available_session_names() == {"Summer 2026", "Fall 2026"}
 
 
 def test_write_offerings_smoke():

@@ -66,7 +66,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 import httpx
 
@@ -231,6 +231,33 @@ def parse_home_college_options(html: str) -> List[Tuple[int, str]]:
     return p.options
 
 
+class _SessionNameParser(HTMLParser):
+    """Extract the terms CVC currently exposes in its search filters."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.session_names: Set[str] = set()
+
+    def handle_starttag(
+        self, tag: str, attrs: List[Tuple[str, Optional[str]]]
+    ) -> None:
+        if tag != "input":
+            return
+        values = dict(attrs)
+        if values.get("name") != "filter[session_names][]":
+            return
+        value = (values.get("value") or "").strip()
+        if value:
+            self.session_names.add(value)
+
+
+def parse_session_names(html: str) -> Set[str]:
+    """Return session labels such as ``{"Summer 2026", "Fall 2026"}``."""
+    parser = _SessionNameParser()
+    parser.feed(html)
+    return parser.session_names
+
+
 # --- HTTP layer --------------------------------------------------------------
 
 class CVCClient:
@@ -257,6 +284,37 @@ class CVCClient:
         if gap < THROTTLE_S:
             time.sleep(THROTTLE_S - gap)
         self._last_request_at = time.monotonic()
+
+    def available_session_names(self) -> Optional[Set[str]]:
+        """Fetch the term labels currently advertised by CVC.
+
+        ``None`` means discovery failed, in which case callers should retain
+        their requested terms rather than interpreting the failure as an empty
+        catalog.
+        """
+        self._throttle()
+        params = [
+            ("filter[search_type]", "open_search"),
+            ("filter[search_all_universities]", "false"),
+            ("filter[display_home_school]", "false"),
+            ("filter[university_id]", CVC_HOME_UNIVERSITY_ID),
+            # CVC renders session filters only after a valid search context.
+            # No session is selected, so this is discovery rather than ingest.
+            ("filter[subject]", "math"),
+        ]
+        try:
+            resp = self._client.get(f"{self.base_url}/search", params=params)
+        except httpx.HTTPError as e:
+            log.warning("Could not discover CVC sessions: %s", e)
+            return None
+        if resp.status_code >= 400:
+            log.warning("CVC session discovery returned HTTP %d", resp.status_code)
+            return None
+        sessions = parse_session_names(resp.text)
+        if not sessions:
+            log.warning("CVC search page contained no session filters")
+            return None
+        return sessions
 
     def search_html(
         self,
@@ -385,6 +443,23 @@ def ingest_terms(
     # httpx logs every request at INFO; that buries our own progress output.
     logging.getLogger("httpx").setLevel(logging.WARNING)
     terms = [parse_code(c) for c in term_codes]
+
+    if not fixture_path:
+        with CVCClient() as discovery_client:
+            available_sessions = discovery_client.available_session_names()
+        if available_sessions is not None:
+            skipped = [term.label for term in terms if term.label not in available_sessions]
+            terms = [term for term in terms if term.label in available_sessions]
+            log.info(
+                "CVC currently advertises %d sessions: %s",
+                len(available_sessions),
+                ", ".join(sorted(available_sessions)),
+            )
+            if skipped:
+                log.info("Skipping unavailable CVC sessions: %s", ", ".join(skipped))
+            if not terms:
+                log.info("None of the requested terms are currently available on CVC")
+                return
 
     conn = db.connect(db_path)
     db.init_db(conn)
