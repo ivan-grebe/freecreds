@@ -1,6 +1,0 @@
-CLOUDFLARE_ACCOUNT_ID=replace-with-account-id
-CLOUDFLARE_API_TOKEN=replace-with-a-scoped-token
-GITHUB_OWNER=replace-with-owner
-GITHUB_REPO=freecreds
-GITHUB_TOKEN=replace-with-a-scoped-token
-MANUAL_TRIGGER_TOKEN=replace-with-a-long-random-value

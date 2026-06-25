@@ -581,7 +581,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument(
         "--university",
         default="CSUFULL",
-        help="Target university ASSIST code (see ASSISTCODES.md)",
+        help="Target university ASSIST code",
     )
     parser.add_argument("--db", default=str(db.DEFAULT_DB_PATH), help="SQLite database path")
     parser.add_argument(

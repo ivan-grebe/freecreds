@@ -181,7 +181,7 @@ def find_institution_by_code(
     for inst in institutions:
         if (inst.get("code") or "").strip().upper() == target:
             return inst
-    raise KeyError(f"No institution with code {code!r} (see ASSISTCODES.md)")
+    raise KeyError(f"No institution with ASSIST code {code!r}")
 
 
 def institution_display_name(inst: Dict[str, Any], year: Optional[int] = None) -> str:

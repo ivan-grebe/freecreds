@@ -4,10 +4,8 @@ FreeCreds helps California students find community-college courses that
 articulate to a selected university course, with optional term and online
 offering filters.
 
-> **Private project status:** this repository is intentionally private.
-> Do not change its visibility until every item in
-> [PUBLIC_RELEASE_CHECKLIST.md](PUBLIC_RELEASE_CHECKLIST.md) is complete,
-> especially the third-party data and access-permission review.
+This repository is intentionally private. Review third-party data permissions
+before changing its visibility.
 
 FreeCreds is an independent planning aid, not an official advising service.
 Results can be delayed, incomplete, or interpreted differently by an
@@ -116,13 +114,6 @@ scripts/      Export, import, and validation utilities
 tests/        Python tests and synthetic fixtures
 tests-ts/     Production TypeScript tests
 ```
-
-## Governance and data
-
-- [THIRD_PARTY_DATA.md](THIRD_PARTY_DATA.md) explains the source-data boundary.
-- [PRIVACY.md](PRIVACY.md) describes current analytics and request handling.
-- [SECURITY.md](SECURITY.md) covers private vulnerability reporting.
-- [CONTRIBUTING.md](CONTRIBUTING.md) explains the development workflow.
 
 The source code is licensed under the [MIT License](LICENSE). That license does
 not grant rights to third-party data, names, marks, APIs, or website content.
