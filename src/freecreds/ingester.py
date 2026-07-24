@@ -603,7 +603,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.all:
         cats = tuple(c.strip().upper() for c in args.categories.split(",") if c.strip())
-        ingest_all_targets(Path(args.db), categories=cats)
+        result = ingest_all_targets(Path(args.db), categories=cats)
+        if result["failed"]:
+            log.error("Refusing to publish an incomplete refresh")
+            return 1
     else:
         ingest_university(args.university, Path(args.db), limit_ccs=args.limit)
     return 0

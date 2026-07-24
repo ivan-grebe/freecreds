@@ -23,7 +23,7 @@ import {
   requireStringParam,
   safeScheduleUrl,
 } from "../_shared/http";
-import { academicYearLabel, parseTermCode } from "../_shared/terms";
+import { academicYearLabel, parseTermCode, upcomingTerms } from "../_shared/terms";
 
 const MODALITY_RANK: Record<string, number> = {
   online_mixed: 1,
@@ -266,43 +266,48 @@ async function resolveOfferingTermIds(
   if (!asyncOnly) {
     return [];
   }
-  const rows = await allRows<{ id: number }>(env.DB.prepare("SELECT id FROM terms"));
+  const codes = upcomingTerms(new Date(), 4).map((term) => term.code);
+  const rows = await allRows<{ id: number }>(
+    env.DB.prepare(
+      `SELECT id FROM terms WHERE code IN (${placeholders(codes.length)})`,
+    ).bind(...codes),
+  );
   return rows.map((row) => row.id);
 }
 
 async function queryOfferings(
   env: Env,
   termIds: number[],
-  rows: ReverseIndexRow[],
-): Promise<Map<string, string>> {
-  const offerings = new Map<string, string>();
-  if (!termIds.length || !rows.length) {
+  lookupKeys: Array<{ institutionId: number; prefix: string; number: string }>,
+): Promise<Map<string, Map<number, string>>> {
+  const offerings = new Map<string, Map<number, string>>();
+  if (!termIds.length || !lookupKeys.length) {
     return offerings;
   }
 
   const seen = new Map<string, { institutionId: number; prefix: string; number: string }>();
-  for (const row of rows) {
-    const prefix = row.cc_prefix.toUpperCase();
-    const number = row.cc_number.toUpperCase();
-    const key = offeringKey(row.cc_institution_id, prefix, number);
+  for (const lookup of lookupKeys) {
+    const prefix = lookup.prefix.toUpperCase();
+    const number = lookup.number.toUpperCase();
+    const key = offeringKey(lookup.institutionId, prefix, number);
     if (!seen.has(key)) {
-      seen.set(key, { institutionId: row.cc_institution_id, prefix, number });
+      seen.set(key, { institutionId: lookup.institutionId, prefix, number });
     }
   }
 
-  const lookupKeys = [...seen.values()];
+  const uniqueKeys = [...seen.values()];
   const maxKeysPerQuery = Math.max(1, Math.floor((90 - termIds.length) / 3));
-  for (const keyChunk of chunks(lookupKeys, maxKeysPerQuery)) {
+  for (const keyChunk of chunks(uniqueKeys, maxKeysPerQuery)) {
     const termMarks = placeholders(termIds.length);
     const keyMarks = tuplePlaceholders(keyChunk.length);
     const params: Array<string | number> = [...termIds];
     for (const key of keyChunk) {
       params.push(key.institutionId, key.prefix, key.number);
     }
-    const offRows = await allRows<OfferingRow>(
+    const offRows = await allRows<OfferingRow & { term_id: number }>(
       env.DB.prepare(`
         SELECT institution_id, UPPER(prefix) AS prefix,
-               UPPER(number) AS number, modality
+               UPPER(number) AS number, term_id, modality
         FROM class_offerings
         WHERE term_id IN (${termMarks})
           AND (institution_id, prefix, number) IN (VALUES ${keyMarks})
@@ -310,11 +315,37 @@ async function queryOfferings(
     );
     for (const offering of offRows) {
       const key = offeringKey(offering.institution_id, offering.prefix, offering.number);
-      offerings.set(key, preferredModality(offerings.get(key), offering.modality));
+      let byTerm = offerings.get(key);
+      if (!byTerm) {
+        byTerm = new Map<number, string>();
+        offerings.set(key, byTerm);
+      }
+      byTerm.set(
+        offering.term_id,
+        preferredModality(byTerm.get(offering.term_id), offering.modality),
+      );
     }
   }
 
   return offerings;
+}
+
+export function matchingBundleModality(
+  offerings: Map<string, Map<number, string>>,
+  keys: string[],
+  termIds: number[],
+  asyncOnly: boolean,
+): string | undefined {
+  for (const termId of termIds) {
+    const modalities = keys.map((key) => offerings.get(key)?.get(termId));
+    if (modalities.some((modality) => !modality)) continue;
+    if (asyncOnly && modalities.some((modality) => modality !== "online_async")) continue;
+    return modalities.reduce<string | undefined>(
+      (chosen, modality) => modality ? preferredModality(chosen, modality) : chosen,
+      undefined,
+    );
+  }
+  return undefined;
 }
 
 async function queryCompanions(
@@ -442,7 +473,6 @@ async function buildReverseResponse(env: Env, query: ReverseQuery): Promise<Resp
     ? []
     : await queryReverseRows(env, course.id, yearId, query.standaloneOnly);
   const offeringTermIds = await resolveOfferingTermIds(env, term.id, query.asyncOnly);
-  const offerings = await queryOfferings(env, offeringTermIds, rows);
 
   const parsedRows = rows.map((row) => ({
     row,
@@ -450,11 +480,36 @@ async function buildReverseResponse(env: Env, query: ReverseQuery): Promise<Resp
     receivingCompanionIds: parseCompanionIds(row.receiving_companion_course_ids),
   }));
   const companionMap = await queryCompanions(env, parsedRows);
+  const lookupKeys = rows.map((row) => ({
+    institutionId: row.cc_institution_id,
+    prefix: row.cc_prefix,
+    number: row.cc_number,
+  }));
+  for (const { row, companionIds } of parsedRows) {
+    for (const id of companionIds) {
+      const companion = companionMap.get(id);
+      if (companion) {
+        lookupKeys.push({
+          institutionId: row.cc_institution_id,
+          prefix: companion.prefix,
+          number: companion.number,
+        });
+      }
+    }
+  }
+  const offerings = await queryOfferings(env, offeringTermIds, lookupKeys);
 
   const results = [];
   for (const { row, companionIds, receivingCompanionIds } of parsedRows) {
-    const modality = offeringTermIds.length
-      ? offerings.get(offeringKey(row.cc_institution_id, row.cc_prefix, row.cc_number))
+    const bundleKeys = [offeringKey(row.cc_institution_id, row.cc_prefix, row.cc_number)];
+    for (const id of companionIds) {
+      const companion = companionMap.get(id);
+      if (companion) {
+        bundleKeys.push(offeringKey(row.cc_institution_id, companion.prefix, companion.number));
+      }
+    }
+    const modality = offeringTermIds.length && bundleKeys.length === companionIds.length + 1
+      ? matchingBundleModality(offerings, bundleKeys, offeringTermIds, query.asyncOnly)
       : undefined;
 
     if (term.id != null && !modality) {
