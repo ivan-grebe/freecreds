@@ -333,7 +333,7 @@ function renderOfferingBadge(status) {
   return el("span", { class: "badge unknown" }, "unknown");
 }
 
-function renderResults(data) {
+function renderResults(data, { animateSummary = true } = {}) {
   output.replaceChildren();
   const q = data.query;
   const termLabel = q.term ? q.term.label : null;
@@ -355,7 +355,11 @@ function renderResults(data) {
   } else {
     headline = `Articulating community colleges (${n})`;
   }
-  output.appendChild(el("div", { class: "result-header" }, [el("h2", {}, headline)]));
+  output.appendChild(el(
+    "div",
+    { class: "result-header" + (animateSummary ? " enter-result-summary" : "") },
+    [el("h2", {}, headline)],
+  ));
   output.appendChild(el("div", { class: "cvc-callout" }, [
     "Course availability changes frequently. ",
     el("a", {
@@ -401,7 +405,6 @@ function renderResults(data) {
     }
     table.appendChild(el("thead", {}, el("tr", {}, headerCells)));
     const tbody = el("tbody");
-    let rowIndex = 0;
     for (const r of visibleResults) {
       const ccChildren = [
         r.cc_name,
@@ -442,9 +445,7 @@ function renderResults(data) {
         cells.push(el("td", { "data-label": "Offered" }, renderOfferingBadge(r.offering_status)));
       }
       const row = el("tr", {}, cells);
-      row.style.animationDelay = `${Math.min(rowIndex, 6) * 55}ms`;
       tbody.appendChild(row);
-      rowIndex += 1;
     }
     table.appendChild(tbody);
     output.appendChild(table);
@@ -526,7 +527,7 @@ async function runSearch() {
 form.addEventListener("submit", (e) => { e.preventDefault(); runSearch(); });
 if (combineBundlesCheck) {
   combineBundlesCheck.addEventListener("change", () => {
-    if (lastResultsData) renderResults(lastResultsData);
+    if (lastResultsData) renderResults(lastResultsData, { animateSummary: false });
   });
 }
 

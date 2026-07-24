@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Reverse ASSIST Search</title>
+  <title>FreeCreds — Find Transferable Courses</title>
   <script>
     // Apply stored theme before first paint to avoid flash. If no stored
     // preference, let the media query below decide at render time.
@@ -64,6 +64,10 @@
         0 7px 18px rgba(0,0,0,.065);
       --panel-glow: rgba(255,255,255,.78);
       --panel-ring: rgba(255,255,255,.72);
+      --panel-solid: #fff;
+      --ease-out: cubic-bezier(.23, 1, .32, 1);
+      --duration-fast: 150ms;
+      --duration-enter: 180ms;
     }
     /* Dark theme: applied either when the OS is in dark mode and the user
        hasn't explicitly chosen light, or when they've picked dark via the
@@ -104,6 +108,7 @@
         --panel-glow: rgba(255,255,255,.04);
         --panel-ring: #293129;
         --dropdown-bg: #121613;
+        --panel-solid: #121613;
       }
     }
     /* Explicit dark override (user clicked). Wins over light media query. */
@@ -141,6 +146,7 @@
       --panel-glow: rgba(255,255,255,.04);
       --panel-ring: #293129;
       --dropdown-bg: #121613;
+      --panel-solid: #121613;
     }
 
     * { box-sizing: border-box; }
@@ -182,17 +188,16 @@
       font: inherit; font-size: 13px; font-weight: 500;
       cursor: pointer; white-space: nowrap; touch-action: manipulation;
       transition-property: color, background-color, box-shadow, transform;
-      transition-duration: 150ms;
-      transition-timing-function: ease-out;
+      transition-duration: var(--duration-fast);
+      transition-timing-function: var(--ease-out);
     }
-    .theme-toggle:hover { color: var(--ink); box-shadow: var(--shadow-border-hover), inset 0 1px 0 var(--panel-glow); }
     .theme-toggle:active { transform: scale(.96); }
     .theme-icons { position: relative; width: 16px; height: 16px; flex: none; }
     .theme-icon {
       position: absolute; inset: 0; width: 16px; height: 16px;
       transition-property: opacity, filter, transform;
-      transition-duration: 300ms;
-      transition-timing-function: cubic-bezier(.2, 0, 0, 1);
+      transition-duration: 200ms;
+      transition-timing-function: var(--ease-out);
     }
     :root[data-effective-theme="light"] .theme-icon-sun,
     :root[data-effective-theme="dark"] .theme-icon-moon {
@@ -221,10 +226,9 @@
       border: 1px solid var(--line); border-radius: 10px;
       font: inherit; background: var(--input-bg); color: var(--ink);
       transition-property: border-color, box-shadow, background-color;
-      transition-duration: 150ms;
-      transition-timing-function: ease-out;
+      transition-duration: var(--duration-fast);
+      transition-timing-function: var(--ease-out);
     }
-    select:hover, input:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
     select:focus, input:focus {
       outline: none;
       border-color: var(--accent);
@@ -242,14 +246,10 @@
       z-index: 10; margin: 0; padding: 4px 0; list-style: none;
       box-shadow: var(--shadow-border), 0 18px 42px var(--shadow);
       display: block;
-      opacity: 0; visibility: hidden; transform: translateY(-8px);
-      transition-property: opacity, transform, visibility;
-      transition-duration: 150ms;
-      transition-timing-function: ease-in;
+      opacity: 0; visibility: hidden;
     }
     .combo-list.open {
-      opacity: 1; visibility: visible; transform: translateY(0);
-      transition-timing-function: ease-out;
+      opacity: 1; visibility: visible;
     }
     .combo-item {
       min-height: 40px; padding: .55rem .7rem; cursor: pointer; font-size: 14px;
@@ -257,9 +257,9 @@
       color: var(--ink); border-radius: 9px; margin: 0 4px;
       transition-property: background-color, color;
       transition-duration: 120ms;
-      transition-timing-function: ease-out;
+      transition-timing-function: var(--ease-out);
     }
-    .combo-item.active, .combo-item:hover { background: var(--hover-bg); }
+    .combo-item.active { background: var(--hover-bg); }
     .combo-item .code { font-weight: 600; margin-right: .4rem; }
     .combo-item .title { color: var(--muted); }
     .combo-empty { padding: .5rem .7rem; color: var(--muted); font-size: 13px; font-style: italic; }
@@ -277,10 +277,9 @@
         inset -2px -2px 4px rgba(218,240,223,.26),
         inset 3px 3px 4px rgba(18,70,40,.1);
       transition-property: transform, filter, box-shadow;
-      transition-duration: 150ms;
-      transition-timing-function: ease-out;
+      transition-duration: var(--duration-fast);
+      transition-timing-function: var(--ease-out);
     }
-    button:hover:not(:disabled) { filter: brightness(1.06); }
     button:active:not(:disabled) { transform: scale(.96); }
     button:disabled { opacity: .5; cursor: not-allowed; }
     button:focus-visible, a:focus-visible, summary:focus-visible {
@@ -337,7 +336,6 @@
     .badge.unknown { background: var(--badge-unknown-bg); color: var(--unknown); }
     .cvc-callout { margin: 0 0 1rem; color: var(--muted); font-size: 13px; }
     .cvc-callout a { color: var(--accent); font-weight: 600; text-decoration: none; }
-    .cvc-callout a:hover { text-decoration: underline; }
     .companion-list { margin: .3rem 0 0; padding-left: 1rem; font-size: 13px; color: var(--muted); }
     .receiving-companion-list { margin: .3rem 0 0; padding-left: 1rem; font-size: 13px; color: var(--accent); }
     .receiving-companion-list > li:first-child { color: var(--muted); font-style: italic; }
@@ -346,7 +344,17 @@
     .source-note.stale { color: var(--bundle); }
     details { margin-top: 1.5rem; background: var(--panel); border: 0;
               border-radius: 14px; padding: .75rem 1rem; box-shadow: var(--shadow-border); }
-    details summary { min-height: 40px; display: flex; align-items: center; cursor: pointer; color: var(--muted); font-size: 14px; }
+    details summary { min-height: 40px; display: flex; align-items: center; cursor: pointer; color: var(--muted); font-size: 14px; list-style: none; }
+    details summary::-webkit-details-marker { display: none; }
+    details summary::after {
+      content: "›";
+      margin-left: auto;
+      font-size: 20px;
+      line-height: 1;
+      transform: rotate(0deg);
+      transition: transform 160ms var(--ease-out);
+    }
+    details[open] summary::after { transform: rotate(90deg); }
     .no-art-list { margin-top: .5rem; font-size: 13px; }
     .no-art-item { color: var(--muted); padding: .2rem 0; }
     .error { padding: 1rem; background: var(--error-bg); border: 1px solid var(--error-line); color: var(--warn);
@@ -359,16 +367,15 @@
       animation: spin 700ms linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .enter-item {
-      opacity: 0; transform: translateY(12px); filter: blur(4px);
-      animation: enter-up 420ms cubic-bezier(.2, 0, 0, 1) forwards;
+    .enter-item, .enter-result-summary {
+      opacity: 0;
+      transform: translateY(8px);
+      animation: enter-up var(--duration-enter) var(--ease-out) forwards;
     }
-    .enter-1 { animation-delay: 20ms; }
-    .enter-2 { animation-delay: 120ms; }
-    .enter-3 { animation-delay: 220ms; }
-    @keyframes enter-up { to { opacity: 1; transform: translateY(0); filter: blur(0); } }
-    #output > * { animation: enter-up 280ms cubic-bezier(.2, 0, 0, 1) both; }
-    tbody tr { animation: enter-up 300ms cubic-bezier(.2, 0, 0, 1) both; }
+    .enter-1 { animation-delay: 0ms; }
+    .enter-2 { animation-delay: 30ms; }
+    .enter-3 { animation-delay: 60ms; }
+    @keyframes enter-up { to { opacity: 1; transform: translateY(0); } }
     .suggestion-list { margin: .5rem 0 0; font-size: 13px; }
     footer { margin-top: 3rem; color: var(--muted); font-size: 12px; text-align: center; }
     footer a { color: var(--muted); }
@@ -541,9 +548,27 @@
       .theme-toggle { width: auto; justify-self: start; }
     }
 
+    @media (hover: hover) and (pointer: fine) {
+      .theme-toggle:hover { color: var(--ink); box-shadow: var(--shadow-border-hover), inset 0 1px 0 var(--panel-glow); }
+      select:hover, input:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
+      .combo-item:hover { background: var(--hover-bg); }
+      button:hover:not(:disabled) { filter: brightness(1.06); }
+      .cvc-callout a:hover { text-decoration: underline; }
+    }
+
     @media (prefers-reduced-motion: reduce) {
-      .enter-item, #output > *, tbody tr { opacity: 1; transform: none; filter: none; animation: none; }
-      .theme-icon, .theme-toggle, button, select, input, .combo-list, .combo-item { transition-duration: 0ms; }
+      .enter-item, .enter-result-summary {
+        transform: none;
+        animation: reduced-fade 120ms ease both;
+      }
+      .theme-icon { transform: none !important; filter: none !important; transition-property: opacity; transition-duration: 120ms; }
+      .theme-toggle:active, button:active:not(:disabled) { transform: none; }
+      details summary::after { transition: opacity 120ms ease; }
+    }
+    @keyframes reduced-fade { from { opacity: .7; } to { opacity: 1; } }
+
+    @media (prefers-reduced-transparency: reduce) {
+      .controls { background: var(--panel-solid); backdrop-filter: none; }
     }
   </style>
 </head>
@@ -551,8 +576,8 @@
 <main>
   <div class="page-head enter-item enter-1">
     <div>
-      <h1>Reverse ASSIST Search</h1>
-      <p class="lede">Pick a California university and a course, see every California community college that articulates to it.</p>
+      <h1>FreeCreds</h1>
+      <p class="lede">Find California community college courses that transfer for the university class you need.</p>
     </div>
     <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle dark mode">
       <span class="theme-icons" aria-hidden="true">
@@ -594,7 +619,7 @@
     </label>
     <div class="checkbox-filter-row">
       <label><input type="checkbox" id="standalone-only"> Standalone equivalents only (hide AND bundles)</label>
-      <label><input type="checkbox" id="combine-bundles" checked> Combine duplicate AND bundles</label>
+      <label><input type="checkbox" id="combine-bundles" checked> Group equivalent course combinations</label>
       <label><input type="checkbox" id="async-only" disabled> Async online only</label>
     </div>
   </div>
