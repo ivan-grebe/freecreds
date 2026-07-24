@@ -38,4 +38,12 @@ describe("frontend browser smoke test", () => {
       expect(options[1].textContent).toBe("Fall 2026");
     });
   });
+
+  it("keeps dropdowns above the content that follows the search form", () => {
+    const controls = document.querySelector<HTMLElement>(".controls");
+
+    expect(controls).not.toBeNull();
+    expect(getComputedStyle(controls!).position).toBe("relative");
+    expect(getComputedStyle(controls!).zIndex).toBe("1");
+  });
 });
