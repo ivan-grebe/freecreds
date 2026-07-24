@@ -196,8 +196,8 @@
     .theme-icon {
       position: absolute; inset: 0; width: 16px; height: 16px;
       transition-property: opacity, filter, transform;
-      transition-duration: 200ms;
-      transition-timing-function: var(--ease-out);
+      transition-duration: 300ms;
+      transition-timing-function: cubic-bezier(.2, 0, 0, 1);
     }
     :root[data-effective-theme="light"] .theme-icon-sun,
     :root[data-effective-theme="dark"] .theme-icon-moon {
@@ -212,7 +212,7 @@
       z-index: 1;
       display: flex; gap: .75rem; flex-wrap: wrap; align-items: end;
       background: var(--panel);
-      border: 0; border-radius: 18px;
+      border: 0; border-radius: 26px;
       padding: 1rem; margin-bottom: 1.5rem;
       box-shadow:
         0 0 0 1px var(--panel-ring),
@@ -242,7 +242,7 @@
     .combo-list {
       position: absolute; top: calc(100% + 4px); left: 0; right: 0;
       background: var(--dropdown-bg);
-      border: 0; border-radius: 12px;
+      border: 0; border-radius: 13px;
       max-height: calc(5 * 2.25rem + 8px);
       overflow-y: auto;
       z-index: 10; margin: 0; padding: 4px 0; list-style: none;
@@ -310,7 +310,7 @@
       align-items: center;
     }
     .checkbox-filter-row label {
-      min-height: 28px;
+      min-height: 40px;
       line-height: 18px;
       white-space: nowrap;
     }
@@ -320,6 +320,7 @@
     .filter-row input[type="checkbox"]:disabled + *,
     .filter-row label:has(input[type="checkbox"]:disabled) { opacity: .45; cursor: not-allowed; }
     .meta { color: var(--muted); font-size: 13px; margin-bottom: .75rem; }
+    .meta, .result-header h2, .combo-count, .source-note { font-variant-numeric: tabular-nums; }
     .result-header { display: flex; justify-content: space-between; align-items: baseline; margin: 1.5rem 0 .5rem; }
     .result-header h2 { margin: 0; font-size: 1.1rem; font-weight: 600; }
     table { width: 100%; border-collapse: collapse; background: var(--panel);
@@ -404,7 +405,7 @@
         grid-template-columns: 1fr;
         gap: .85rem;
         padding: .85rem;
-        border-radius: 16px;
+        border-radius: 24px;
         margin-bottom: 1rem;
         margin-top: .55rem;
       }
@@ -430,7 +431,7 @@
       }
       .combo-list {
         max-height: min(18rem, 48vh);
-        border-radius: 8px;
+        border-radius: 13px;
       }
       .combo-item {
         padding: .65rem .75rem;
@@ -450,7 +451,7 @@
         padding: .8rem;
         background: var(--panel);
         border: 0;
-        border-radius: 14px;
+        border-radius: 23px;
         box-shadow: var(--shadow-border);
         margin-bottom: 1rem;
       }
@@ -537,6 +538,10 @@
       }
       details {
         padding: .75rem;
+      }
+      details summary,
+      .checkbox-filter-row label {
+        min-height: 44px;
       }
       footer {
         margin-top: 2rem;
