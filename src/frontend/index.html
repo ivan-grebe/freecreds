@@ -335,9 +335,9 @@
     .badge.async-online { background: var(--badge-async-bg); color: var(--async); }
     .badge.online-sync { background: var(--badge-sync-bg); color: var(--sync); }
     .badge.unknown { background: var(--badge-unknown-bg); color: var(--unknown); }
-    .schedule-link { font-size: 13px; color: var(--accent); text-decoration: none; white-space: nowrap; }
-    .schedule-link:hover { text-decoration: underline; }
-    .schedule-muted { font-size: 13px; color: var(--muted); font-style: italic; }
+    .cvc-callout { margin: 0 0 1rem; color: var(--muted); font-size: 13px; }
+    .cvc-callout a { color: var(--accent); font-weight: 600; text-decoration: none; }
+    .cvc-callout a:hover { text-decoration: underline; }
     .companion-list { margin: .3rem 0 0; padding-left: 1rem; font-size: 13px; color: var(--muted); }
     .receiving-companion-list { margin: .3rem 0 0; padding-left: 1rem; font-size: 13px; color: var(--accent); }
     .receiving-companion-list > li:first-child { color: var(--muted); font-style: italic; }
@@ -521,12 +521,6 @@
       }
       .badge {
         border-radius: 999px;
-      }
-      .schedule-link,
-      .schedule-muted {
-        display: inline-flex;
-        min-height: 32px;
-        align-items: center;
       }
       .companion-list,
       .receiving-companion-list {

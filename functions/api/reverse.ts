@@ -21,7 +21,6 @@ import {
   optionalStringParam,
   parseBooleanParam,
   requireStringParam,
-  safeScheduleUrl,
 } from "../_shared/http";
 import { academicYearLabel, parseTermCode, upcomingTerms } from "../_shared/terms";
 
@@ -222,7 +221,6 @@ async function queryReverseRows(
 ): Promise<ReverseIndexRow[]> {
   let sql = `
     SELECT cc.code AS cc_code, cc.name AS cc_name,
-           cc.schedule_url AS cc_schedule_url,
            c_cc.id AS cc_course_id,
            c_cc.prefix AS cc_prefix, c_cc.number AS cc_number,
            c_cc.title AS cc_title,
@@ -530,7 +528,6 @@ async function buildReverseResponse(env: Env, query: ReverseQuery): Promise<Resp
         (id) => companionMap.get(id) || { id },
       ),
       offering_status: term.id != null ? offeringStatus(modality) : "unknown",
-      schedule_url: safeScheduleUrl(row.cc_schedule_url),
       sources,
       academic_year_id: row.academic_year_id,
       academic_year: academicYearLabel(row.academic_year_id),

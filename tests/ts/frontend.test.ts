@@ -9,7 +9,6 @@ describe("frontend result logic", () => {
       academic_year_id: 76,
       is_standalone: false,
       receiving_companion_courses: [],
-      schedule_url: null,
     };
     const first = {
       ...shared,
@@ -24,7 +23,6 @@ describe("frontend result logic", () => {
       companion_courses: [{ prefix: "MATH", number: "1A", title: "A" }],
       sources: ["Major: Mathematics"],
       offering_status: "async_online",
-      schedule_url: "https://college.example/schedule",
     };
 
     const result = dedupeBundleRows([first, second]);

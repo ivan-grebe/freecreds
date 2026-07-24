@@ -69,9 +69,6 @@ export function dedupeBundleRows(rows) {
     if (offeringRank(row.offering_status) > offeringRank(existing.offering_status)) {
       existing.offering_status = row.offering_status;
     }
-    if (!existing.schedule_url && row.schedule_url) {
-      existing.schedule_url = row.schedule_url;
-    }
   }
 
   return { rows: output, hidden };

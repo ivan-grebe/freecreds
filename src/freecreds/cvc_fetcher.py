@@ -43,7 +43,7 @@ ignores the subject filter and returns a broad all-subject result set.
 
 If CVC is unreachable or its HTML shape changes, this module logs and
 exits without crashing. The reverse-search feature still works; offering
-status becomes "unknown" and the link-out is the user's fallback.
+status becomes "unknown" and users can check CVC directly as a fallback.
 
 ## Usage
 

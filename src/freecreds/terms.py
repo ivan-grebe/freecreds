@@ -6,9 +6,8 @@ CCC-term conventions:
 - Semester colleges: Fall, Spring, (sometimes Winter intersession), Summer
 - Quarter colleges: Fall, Winter, Spring, Summer
 
-We emit a single canonical sequence (the union) and let each college's
-published schedule speak for itself via the link-out. The 4-term dropdown
-shown in the UI is based on the current calendar date.
+We emit a single canonical sequence (the union). The 4-term dropdown shown
+in the UI is based on the current calendar date.
 """
 from __future__ import annotations
 

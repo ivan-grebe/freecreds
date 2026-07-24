@@ -333,19 +333,6 @@ function renderOfferingBadge(status) {
   return el("span", { class: "badge unknown" }, "unknown");
 }
 
-function renderScheduleCell(r, termLabel) {
-  if (!r.schedule_url) {
-    return el("span", { class: "schedule-muted" }, "—");
-  }
-  const label = termLabel ? `Check ${termLabel}` : "Check schedule";
-  return el("a", {
-    class: "schedule-link",
-    href: r.schedule_url,
-    target: "_blank",
-    rel: "noopener",
-  }, label);
-}
-
 function renderResults(data) {
   output.replaceChildren();
   const q = data.query;
@@ -369,6 +356,15 @@ function renderResults(data) {
     headline = `Articulating community colleges (${n})`;
   }
   output.appendChild(el("div", { class: "result-header" }, [el("h2", {}, headline)]));
+  output.appendChild(el("div", { class: "cvc-callout" }, [
+    "Course availability changes frequently. ",
+    el("a", {
+      href: "https://www.cvc.edu/",
+      target: "_blank",
+      rel: "noopener",
+    }, "Check CVC for current availability"),
+    ".",
+  ]));
   if (hiddenBundleRows) {
     output.appendChild(el(
       "div",
@@ -385,8 +381,7 @@ function renderResults(data) {
       msg = `No colleges confirmed to offer this course as async online in ${termScope}.`;
     } else if (termLabel) {
       msg = `No colleges confirmed to offer this course online in ${termLabel}. `
-        + `Pick "skip" above to see the full articulation list, `
-        + "or click a schedule link to check a specific college.";
+        + `Pick "skip" above to see the full articulation list, or check CVC for current availability.`;
     } else {
       msg = "No articulations found for this course.";
     }
@@ -403,7 +398,6 @@ function renderResults(data) {
     ];
     if (showOfferingCols) {
       headerCells.push(el("th", {}, "Offered"));
-      headerCells.push(el("th", {}, "Schedule"));
     }
     table.appendChild(el("thead", {}, el("tr", {}, headerCells)));
     const tbody = el("tbody");
@@ -446,7 +440,6 @@ function renderResults(data) {
       const cells = [cc, courseCell, type];
       if (showOfferingCols) {
         cells.push(el("td", { "data-label": "Offered" }, renderOfferingBadge(r.offering_status)));
-        cells.push(el("td", { "data-label": "Schedule" }, renderScheduleCell(r, termLabel)));
       }
       const row = el("tr", {}, cells);
       row.style.animationDelay = `${Math.min(rowIndex, 6) * 55}ms`;

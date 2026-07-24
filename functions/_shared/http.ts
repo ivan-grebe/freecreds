@@ -110,18 +110,3 @@ export function parseBooleanParam(url: URL, name: string): boolean {
   }
   return value === "1" || value.toLowerCase() === "true";
 }
-
-export function safeScheduleUrl(value: unknown): string | null {
-  if (typeof value !== "string" || !value.trim()) {
-    return null;
-  }
-  try {
-    const parsed = new URL(value);
-    if (parsed.protocol === "https:") {
-      return parsed.toString();
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}

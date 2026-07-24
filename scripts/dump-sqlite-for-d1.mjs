@@ -24,7 +24,7 @@ const EXPORTS = [
     table: "institutions",
     sql: `
       SELECT id, assist_id, ${clean("code")}, ${clean("name")},
-             ${clean("category")}, ${clean("term_type")}, ${clean("schedule_url")}
+             ${clean("category")}, ${clean("term_type")}
       FROM institutions
       ORDER BY id;
     `,

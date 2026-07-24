@@ -22,8 +22,7 @@ CREATE TABLE IF NOT EXISTS institutions (
   code TEXT NOT NULL,
   name TEXT NOT NULL,
   category TEXT NOT NULL CHECK(category IN ('CCC','CSU','UC','AICCU')),
-  term_type TEXT NOT NULL,
-  schedule_url TEXT
+  term_type TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_inst_code ON institutions(code);
 CREATE INDEX IF NOT EXISTS idx_inst_code_nocase
@@ -172,9 +171,11 @@ def _migrate(conn: sqlite3.Connection) -> None:
     constraints on an existing table, so we probe and rewrite when needed.
     All migrations are idempotent.
     """
-    cols = {row[1] for row in conn.execute("PRAGMA table_info(institutions)")}
-    if "schedule_url" not in cols:
-        conn.execute("ALTER TABLE institutions ADD COLUMN schedule_url TEXT")
+    institution_cols = {
+        row[1] for row in conn.execute("PRAGMA table_info(institutions)")
+    }
+    if "schedule_url" in institution_cols:
+        conn.execute("ALTER TABLE institutions DROP COLUMN schedule_url")
 
     # articulations: add `source_context` + widen UNIQUE to include it.
     # SQLite can't alter a UNIQUE constraint in place; we rebuild the table.
@@ -511,15 +512,6 @@ def clear_offerings(
         f"DELETE FROM class_offerings WHERE source = ? AND term_id IN ({q_marks})",
         [source, *term_id_list],
     )
-
-
-def set_schedule_url(conn: sqlite3.Connection, code: str, url: str) -> int:
-    """Set schedule_url on institutions matching `code` (trimmed). Returns rows affected."""
-    cur = conn.execute(
-        "UPDATE institutions SET schedule_url = ? WHERE code = ?",
-        (url, code.strip()),
-    )
-    return cur.rowcount
 
 
 def clear_articulation_data(

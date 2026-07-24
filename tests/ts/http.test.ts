@@ -4,7 +4,6 @@ import { chunks, placeholders } from "../../functions/_shared/d1";
 import {
   parseBooleanParam,
   requireStringParam,
-  safeScheduleUrl,
 } from "../../functions/_shared/http";
 
 describe("HTTP helpers", () => {
@@ -21,14 +20,6 @@ describe("HTTP helpers", () => {
       { maxLength: 12, pattern: /^[A-Z0-9]+$/, description: "a course code" },
     );
     expect(result).toBe("MATH101");
-  });
-
-  it("accepts HTTPS schedule links only", () => {
-    expect(safeScheduleUrl("https://college.example/schedule")).toBe(
-      "https://college.example/schedule",
-    );
-    expect(safeScheduleUrl("http://college.example/schedule")).toBeNull();
-    expect(safeScheduleUrl("javascript:alert(1)")).toBeNull();
   });
 
   it("builds SQL placeholders and chunks arrays", () => {

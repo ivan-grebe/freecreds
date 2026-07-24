@@ -196,19 +196,17 @@ jobs:
         if: steps.refresh.outputs.kind == 'cvc'
         run: python -m freecreds.cvc_fetcher --terms "${{ steps.terms.outputs.codes }}"
 
-      - name: Apply schedule URLs and seed upcoming terms
+      - name: Seed upcoming terms
         run: |
           python - <<'PY'
           from datetime import date
           from pathlib import Path
           from freecreds import db
-          from freecreds.schedule_urls import apply_schedule_urls
           from freecreds.terms import upcoming_terms
 
           connection = db.connect(Path("data/assist.db"))
           try:
               db.init_db(connection)
-              apply_schedule_urls(connection)
               for term in upcoming_terms(date.today(), count=4):
                   db.upsert_term(
                       connection,

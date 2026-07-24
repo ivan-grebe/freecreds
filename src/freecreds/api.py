@@ -13,7 +13,6 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import db
-from .schedule_urls import apply_schedule_urls
 from .terms import academic_year_label, parse_code, upcoming_terms
 
 DB_PATH = Path(__file__).parent.parent / "data" / "assist.db"
@@ -29,22 +28,20 @@ def _conn() -> sqlite3.Connection:
 
 
 def _run_startup_tasks() -> None:
-    """Run lightweight migrations, populate schedule_url for known CCCs,
-    and ensure the upcoming terms exist in the DB.
+    """Run lightweight migrations and ensure upcoming terms exist in the DB.
 
     The terms upsert matters for the reverse-lookup endpoint: it resolves
     a term code to an ID to join against class_offerings. If a term is
     missing from the table, the endpoint silently drops the term filter
     — which makes the UI's "Offered" column disappear.
 
-    All three steps are idempotent — safe to run on every startup.
+    Both steps are idempotent — safe to run on every startup.
     """
     if not DB_PATH.parent.exists():
         return
     conn = _conn()
     try:
         db.init_db(conn)
-        apply_schedule_urls(conn)
         for t in upcoming_terms(date.today(), count=4):
             db.upsert_term(conn, code=t.code, label=t.label, season=t.season, year=t.year)
         conn.commit()
@@ -307,7 +304,6 @@ def _query_reverse_rows(
 ) -> list[sqlite3.Row]:
     sql = """
       SELECT cc.code AS cc_code, cc.name AS cc_name,
-             cc.schedule_url AS cc_schedule_url,
              c_cc.id AS cc_course_id,
              c_cc.prefix AS cc_prefix, c_cc.number AS cc_number,
              c_cc.title AS cc_title,
@@ -453,7 +449,6 @@ def _build_reverse_results(
                 "offering_status": (
                     _offering_status(modality) if selected_term_id is not None else "unknown"
                 ),
-                "schedule_url": row["cc_schedule_url"],
                 "sources": [source for source in (row["sources_csv"] or "").split(",") if source],
                 "academic_year_id": row["academic_year_id"],
                 "academic_year": academic_year_label(row["academic_year_id"]),
