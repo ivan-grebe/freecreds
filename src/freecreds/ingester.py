@@ -1,10 +1,10 @@
 """Orchestrate fetch → parse → store.
 
 Single target:
-    python -m src.ingester --university CSUFULL
+    python -m freecreds.ingester --university CSUFULL
 
 Every CSU + UC + AICCU target in one go (slow — run in a fresh shell):
-    python -m src.ingester --all
+    python -m freecreds.ingester --all
 """
 from __future__ import annotations
 

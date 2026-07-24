@@ -47,9 +47,9 @@ status becomes "unknown" and the link-out is the user's fallback.
 
 ## Usage
 
-    python -m src.cvc_fetcher --terms FA26,SP27
-    python -m src.cvc_fetcher --terms FA26 --subjects MATH,ENGL    # quick test
-    python -m src.cvc_fetcher --fixture tests/fixtures/cvc_response_sample.html --terms FA26
+    python -m freecreds.cvc_fetcher --terms FA26,SP27
+    python -m freecreds.cvc_fetcher --terms FA26 --subjects MATH,ENGL    # quick test
+    python -m freecreds.cvc_fetcher --fixture tests/python/fixtures/cvc_response_sample.html --terms FA26
 
 `--fixture` parses a single saved HTML page (offline mode for testing).
 It treats every card as async; use the live flow in prod.

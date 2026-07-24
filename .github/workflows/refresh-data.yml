@@ -139,7 +139,7 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          from src import db
+          from freecreds import db
 
           connection = db.connect(Path("data/assist.db"))
           try:
@@ -170,7 +170,7 @@ jobs:
           python - <<'PY'
           from datetime import date
           from pathlib import Path
-          from src import db
+          from freecreds import db
           from freecreds.schedule_urls import apply_schedule_urls
           from freecreds.terms import upcoming_terms
 

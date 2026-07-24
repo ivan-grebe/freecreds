@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from src import api, db
+from freecreds import api, db
 
 
 def _seed_reverse_lookup_db(db_path: Path) -> None:
