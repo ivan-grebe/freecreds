@@ -22,9 +22,9 @@
     "check": "npm run lint:py && npm run test:py && npm run cf:typecheck && npm run test:ts && npm run check:migrations"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260624.1",
+    "@cloudflare/workers-types": "^5.20260722.1",
     "typescript": "^6.0.3",
     "vitest": "^4.1.9",
-    "wrangler": "^4.104.0"
+    "wrangler": "^4.114.0"
   }
 }
