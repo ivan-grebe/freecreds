@@ -194,7 +194,6 @@ async function main() {
   const parts = [];
   let insertCount = 0;
   let partNumber = 0;
-  let part = null;
 
   async function openPart() {
     partNumber += 1;
@@ -223,7 +222,7 @@ async function main() {
     return next;
   }
 
-  part = await openPart();
+  let part = await openPart();
 
   const lines = createInterface({
     input: sqlite.stdout,

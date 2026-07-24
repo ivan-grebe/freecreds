@@ -1,0 +1,35 @@
+[
+  {
+    "name": "members in different terms do not match",
+    "term_ids": [10, 11],
+    "async_only": true,
+    "keys": ["1|MATH|1A", "1|MATH|1B"],
+    "offerings": {
+      "1|MATH|1A": { "10": "online_async" },
+      "1|MATH|1B": { "11": "online_async" }
+    },
+    "expected": null
+  },
+  {
+    "name": "all async members in one term match",
+    "term_ids": [10],
+    "async_only": true,
+    "keys": ["1|MATH|1A", "1|MATH|1B"],
+    "offerings": {
+      "1|MATH|1A": { "10": "online_async" },
+      "1|MATH|1B": { "10": "online_async" }
+    },
+    "expected": "online_async"
+  },
+  {
+    "name": "sync companion fails async-only",
+    "term_ids": [10],
+    "async_only": true,
+    "keys": ["1|MATH|1A", "1|MATH|1B"],
+    "offerings": {
+      "1|MATH|1A": { "10": "online_async" },
+      "1|MATH|1B": { "10": "online_sync" }
+    },
+    "expected": null
+  }
+]

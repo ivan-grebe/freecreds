@@ -1,12 +1,31 @@
 """Tests for API query behavior that is easy to regress."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from freecreds import api, db
+
+BUNDLE_CONTRACTS = json.loads(
+    (Path(__file__).parents[1] / "contracts" / "bundle_offerings.json").read_text()
+)
+
+
+@pytest.mark.parametrize("contract", BUNDLE_CONTRACTS, ids=lambda case: case["name"])
+def test_bundle_offering_contract(contract):
+    offerings = {
+        key: {int(term_id): modality for term_id, modality in terms.items()}
+        for key, terms in contract["offerings"].items()
+    }
+    assert api._matching_bundle_modality(
+        offerings,
+        contract["keys"],
+        contract["term_ids"],
+        contract["async_only"],
+    ) == contract["expected"]
 
 
 def _seed_reverse_lookup_db(db_path: Path) -> None:

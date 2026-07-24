@@ -134,6 +134,19 @@ CREATE INDEX IF NOT EXISTS idx_offerings_course
   ON class_offerings(course_id, term_id);
 CREATE INDEX IF NOT EXISTS idx_offerings_source_term
   ON class_offerings(source, term_id);
+
+CREATE TABLE IF NOT EXISTS ingest_jobs (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL CHECK(kind IN ('cvc','assist')),
+  status TEXT NOT NULL CHECK(status IN ('queued','dispatched','completed','failed')),
+  requested_by TEXT NOT NULL,
+  started_at TEXT NOT NULL,
+  finished_at TEXT,
+  error TEXT,
+  metadata TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ingest_jobs_kind_started
+  ON ingest_jobs(kind, started_at);
 """
 
 
@@ -425,15 +438,29 @@ def upsert_class_offering(
     source_ref: str | None,
     fetched_at: str,
 ) -> None:
-    conn.execute(
-        """INSERT INTO class_offerings
-             (institution_id, course_id, prefix, number, term_id,
-              modality, source, source_ref, fetched_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(institution_id, prefix, number, term_id, source_ref) DO UPDATE SET
-             course_id=excluded.course_id,
-             modality=excluded.modality,
-             fetched_at=excluded.fetched_at""",
+    upsert_class_offerings(
+        conn,
+        [
+            (
+                institution_id,
+                course_id,
+                prefix,
+                number,
+                term_id,
+                modality,
+                source,
+                source_ref,
+                fetched_at,
+            )
+        ],
+    )
+
+
+def upsert_class_offerings(
+    conn: sqlite3.Connection,
+    rows: Iterable[tuple[int, int | None, str, str, int, str, str, str | None, str]],
+) -> None:
+    payload = [
         (
             institution_id,
             course_id,
@@ -444,7 +471,29 @@ def upsert_class_offering(
             source,
             source_ref,
             fetched_at,
-        ),
+        )
+        for (
+            institution_id,
+            course_id,
+            prefix,
+            number,
+            term_id,
+            modality,
+            source,
+            source_ref,
+            fetched_at,
+        ) in rows
+    ]
+    conn.executemany(
+        """INSERT INTO class_offerings
+             (institution_id, course_id, prefix, number, term_id,
+              modality, source, source_ref, fetched_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(institution_id, prefix, number, term_id, source_ref) DO UPDATE SET
+             course_id=excluded.course_id,
+             modality=excluded.modality,
+             fetched_at=excluded.fetched_at""",
+        payload,
     )
 
 

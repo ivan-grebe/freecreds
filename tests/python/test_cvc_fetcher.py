@@ -266,6 +266,32 @@ def test_write_offerings_idempotent_upsert():
     assert count == 1
 
 
+def test_write_offerings_uses_constant_lookup_queries():
+    conn = _seed_conn()
+    term = parse_code("FA26")
+    ensure_term(conn, term)
+    conn.commit()
+    statements = []
+    conn.set_trace_callback(statements.append)
+    records = [
+        OfferingRecord(
+            college_name="Coalinga College",
+            prefix="MATH",
+            number="45",
+            term_code="FA26",
+            modality="online_async",
+            source_ref=f"https://search.cvc.edu/courses/{index}",
+        )
+        for index in range(25)
+    ]
+
+    write_offerings(conn, records, term)
+
+    selects = [statement for statement in statements if statement.lstrip().upper().startswith("SELECT")]
+    assert len(selects) == 3
+    assert conn.execute("SELECT COUNT(*) FROM class_offerings").fetchone()[0] == 25
+
+
 def test_failed_crawl_preserves_existing_offerings(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

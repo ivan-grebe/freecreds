@@ -105,6 +105,12 @@ class OfferingRecord:
     source_ref: str
 
 
+@dataclass(frozen=True)
+class OfferingLookups:
+    institutions_by_code: dict[str, int]
+    courses_by_key: dict[tuple[int, str, str], int]
+
+
 # --- HTML parsing ------------------------------------------------------------
 
 # Splits page HTML into per-card chunks. Card containers start with
@@ -357,6 +363,7 @@ def write_offerings(
     source: str = "cvc",
     *,
     staging: bool = False,
+    lookups: OfferingLookups | None = None,
 ) -> dict[str, int]:
     """Upsert records. `term` must already be in the terms table."""
     counts = _empty_write_counts()
@@ -365,70 +372,71 @@ def write_offerings(
         raise ValueError(f"Term {term.code} not in DB — call ensure_term first")
     fetched_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
+    if lookups is None:
+        lookups = _load_offering_lookups(conn)
+
+    payload: list[tuple[int, int | None, str, str, int, str, str, str, str]] = []
     for rec in records:
         code = cvc_code_for(rec.college_name)
         if not code:
             counts["skipped_unknown_college"] += 1
             log.debug("No ASSIST code for CVC college %r", rec.college_name)
             continue
-        inst_row = conn.execute(
-            "SELECT id FROM institutions WHERE code = ?", (code.strip(),)
-        ).fetchone()
-        if not inst_row:
+        institution_id = lookups.institutions_by_code.get(code.strip().upper())
+        if institution_id is None:
             counts["skipped_missing_institution"] += 1
             log.debug("No ingested institution row for ASSIST code %s", code)
             continue
-        institution_id = inst_row[0]
-
-        # Best-effort course linking: match on (institution_id, prefix, number).
-        # If the CCC has no articulating course ingested yet, course_id stays
-        # NULL and the API falls back to (prefix, number) matching.
-        course_row = conn.execute(
-            """SELECT id FROM courses
-               WHERE institution_id = ?
-                 AND prefix = ? COLLATE NOCASE
-                 AND number = ? COLLATE NOCASE""",
-            (institution_id, rec.prefix, rec.number),
-        ).fetchone()
-        course_id = course_row[0] if course_row else None
-
-        if staging:
-            conn.execute(
-                """INSERT INTO cvc_offerings_staging
-                     (institution_id, course_id, prefix, number, term_id,
-                      modality, source, source_ref, fetched_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                   ON CONFLICT(institution_id, prefix, number, term_id, source_ref)
-                   DO UPDATE SET course_id=excluded.course_id,
-                                 modality=excluded.modality,
-                                 fetched_at=excluded.fetched_at""",
-                (
-                    institution_id,
-                    course_id,
-                    rec.prefix.strip().upper(),
-                    rec.number.strip().upper(),
-                    term_id,
-                    rec.modality,
-                    source,
-                    rec.source_ref,
-                    fetched_at,
-                ),
+        prefix = rec.prefix.strip().upper()
+        number = rec.number.strip().upper()
+        course_id = lookups.courses_by_key.get((institution_id, prefix, number))
+        payload.append(
+            (
+                institution_id,
+                course_id,
+                prefix,
+                number,
+                term_id,
+                rec.modality,
+                source,
+                rec.source_ref,
+                fetched_at,
             )
-        else:
-            db.upsert_class_offering(
-                conn,
-                institution_id=institution_id,
-                course_id=course_id,
-                prefix=rec.prefix,
-                number=rec.number,
-                term_id=term_id,
-                modality=rec.modality,
-                source=source,
-                source_ref=rec.source_ref,
-                fetched_at=fetched_at,
-            )
+        )
         counts["written"] += 1
+
+    if staging:
+        conn.executemany(
+            """INSERT INTO cvc_offerings_staging
+                 (institution_id, course_id, prefix, number, term_id,
+                  modality, source, source_ref, fetched_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(institution_id, prefix, number, term_id, source_ref)
+               DO UPDATE SET course_id=excluded.course_id,
+                             modality=excluded.modality,
+                             fetched_at=excluded.fetched_at""",
+            payload,
+        )
+    else:
+        db.upsert_class_offerings(conn, payload)
     return counts
+
+
+def _load_offering_lookups(conn: sqlite3.Connection) -> OfferingLookups:
+    institutions = {
+        row["code"].strip().upper(): row["id"]
+        for row in conn.execute("SELECT id, code FROM institutions WHERE category = 'CCC'")
+    }
+    courses = {
+        (row["institution_id"], row["prefix"].upper(), row["number"].upper()): row["id"]
+        for row in conn.execute(
+            """SELECT c.id, c.institution_id, c.prefix, c.number
+               FROM courses c
+               JOIN institutions i ON i.id = c.institution_id
+               WHERE i.category = 'CCC'"""
+        )
+    }
+    return OfferingLookups(institutions_by_code=institutions, courses_by_key=courses)
 
 
 def _prepare_offering_staging(conn: sqlite3.Connection) -> None:
@@ -491,6 +499,136 @@ def ccc_subject_prefixes(conn: sqlite3.Connection) -> list[str]:
     return [r[0] for r in rows if r[0]]
 
 
+def _filter_available_terms(terms: list[Term], fixture_path: Path | None) -> list[Term]:
+    if fixture_path:
+        return terms
+    with CVCClient() as client:
+        available_sessions = client.available_session_names()
+    if available_sessions is None:
+        return terms
+    skipped = [term.label for term in terms if term.label not in available_sessions]
+    available = [term for term in terms if term.label in available_sessions]
+    log.info(
+        "CVC currently advertises %d sessions: %s",
+        len(available_sessions),
+        ", ".join(sorted(available_sessions)),
+    )
+    if skipped:
+        log.info("Skipping unavailable CVC sessions: %s", ", ".join(skipped))
+    return available
+
+
+def _ingest_fixture(
+    conn: sqlite3.Connection,
+    fixture_path: Path,
+    terms: list[Term],
+    term_ids: list[int],
+    lookups: OfferingLookups,
+) -> dict[str, int]:
+    _prepare_offering_staging(conn)
+    log.info("Loading from fixture %s (treated as online_async)", fixture_path)
+    html = fixture_path.read_text(encoding="utf-8", errors="replace")
+    totals = _empty_write_counts()
+    for term in terms:
+        records = parse_search_html(html, term_code=term.code, modality="online_async")
+        counts = write_offerings(conn, records, term, staging=True, lookups=lookups)
+        _add_write_counts(totals, counts)
+        log.info(
+            "Term %s (fixture): parsed %d cards, wrote %d",
+            term.code,
+            len(records),
+            counts["written"],
+        )
+    _publish_staged_offerings(conn, source="cvc", term_ids=term_ids)
+    return totals
+
+
+def _crawl_subject(
+    client: CVCClient,
+    conn: sqlite3.Connection,
+    term: Term,
+    subtype: str,
+    modality: str,
+    subject: str,
+    lookups: OfferingLookups,
+) -> tuple[dict[str, int], int, int]:
+    totals = _empty_write_counts()
+    cards = 0
+    pages = 0
+    for page in range(1, MAX_PAGES_PER_QUERY + 1):
+        html = client.search_html(term, subtype, subject, page=page)
+        if html is None:
+            raise RuntimeError(
+                "CVC refresh incomplete at "
+                f"{term.code}/{subtype} subject={subject} page={page}; "
+                "existing offerings were preserved"
+            )
+        if count_cards(html) == 0:
+            break
+        records = parse_search_html(html, term_code=term.code, modality=modality)
+        counts = write_offerings(conn, records, term, staging=True, lookups=lookups)
+        _add_write_counts(totals, counts)
+        cards += len(records)
+        pages += 1
+        log.info(
+            "    %s/%s subj=%s p%d: %d cards parsed, %d written",
+            term.code,
+            subtype,
+            subject,
+            page,
+            len(records),
+            counts["written"],
+        )
+        if not has_next_page(html):
+            break
+        if page == MAX_PAGES_PER_QUERY:
+            raise RuntimeError(
+                "CVC refresh hit the pagination safety cap at "
+                f"{term.code}/{subtype} subject={subject}; "
+                "existing offerings were preserved"
+            )
+    return totals, cards, pages
+
+
+def _crawl_live_offerings(
+    conn: sqlite3.Connection,
+    terms: list[Term],
+    term_ids: list[int],
+    subjects: list[str],
+    lookups: OfferingLookups,
+) -> dict[str, int]:
+    _prepare_offering_staging(conn)
+    totals = _empty_write_counts()
+    log.info(
+        "Estimated minimum runtime: %.1f min (pagination extends this)",
+        THROTTLE_S * len(MODALITY_SUBTYPES) * len(subjects) * len(terms) / 60.0,
+    )
+    with CVCClient() as client:
+        for term in terms:
+            term_total = 0
+            for subtype, modality in MODALITY_SUBTYPES:
+                for index, subject in enumerate(subjects, start=1):
+                    counts, cards, pages = _crawl_subject(
+                        client, conn, term, subtype, modality, subject, lookups
+                    )
+                    _add_write_counts(totals, counts)
+                    term_total += counts["written"]
+                    if cards:
+                        log.info(
+                            "  %s / %s subj=%-8s [%d/%d] %d cards (%d pages)",
+                            term.code,
+                            subtype,
+                            subject,
+                            index,
+                            len(subjects),
+                            cards,
+                            pages,
+                        )
+            log.info("Term %s: %d offerings written", term.code, term_total)
+    _publish_staged_offerings(conn, source="cvc", term_ids=term_ids)
+    return totals
+
+
 # --- Entry point -------------------------------------------------------------
 
 def ingest_terms(
@@ -500,116 +638,31 @@ def ingest_terms(
     subjects: list[str] | None = None,
 ) -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    # httpx logs every request at INFO; that buries our own progress output.
     logging.getLogger("httpx").setLevel(logging.WARNING)
-    terms = [parse_code(c) for c in term_codes]
-
-    if not fixture_path:
-        with CVCClient() as discovery_client:
-            available_sessions = discovery_client.available_session_names()
-        if available_sessions is not None:
-            skipped = [term.label for term in terms if term.label not in available_sessions]
-            terms = [term for term in terms if term.label in available_sessions]
-            log.info(
-                "CVC currently advertises %d sessions: %s",
-                len(available_sessions),
-                ", ".join(sorted(available_sessions)),
-            )
-            if skipped:
-                log.info("Skipping unavailable CVC sessions: %s", ", ".join(skipped))
-            if not terms:
-                log.info("None of the requested terms are currently available on CVC")
-                return
-
+    terms = _filter_available_terms([parse_code(code) for code in term_codes], fixture_path)
+    if not terms:
+        log.info("None of the requested terms are currently available on CVC")
+        return
     conn = db.connect(db_path)
-    db.init_db(conn)
-    term_ids = [ensure_term(conn, t) for t in terms]
-    conn.commit()
-
-    if fixture_path:
-        _prepare_offering_staging(conn)
-        log.info("Loading from fixture %s (treated as online_async)", fixture_path)
-        html = fixture_path.read_text(encoding="utf-8", errors="replace")
-        totals = _empty_write_counts()
-        for term in terms:
-            records = parse_search_html(html, term_code=term.code, modality="online_async")
-            counts = write_offerings(conn, records, term, staging=True)
-            _add_write_counts(totals, counts)
-            conn.commit()
-            log.info("Term %s (fixture): parsed %d cards, wrote %d",
-                     term.code, len(records), counts["written"])
-        _publish_staged_offerings(conn, source="cvc", term_ids=term_ids)
+    try:
+        db.init_db(conn)
+        term_ids = [ensure_term(conn, term) for term in terms]
+        conn.commit()
+        lookups = _load_offering_lookups(conn)
+        if fixture_path:
+            totals = _ingest_fixture(conn, fixture_path, terms, term_ids, lookups)
+        else:
+            selected_subjects = subjects if subjects is not None else ccc_subject_prefixes(conn)
+            if not selected_subjects:
+                log.error("No subjects to search — did you run the ASSIST ingester first?")
+                return
+            log.info("Searching %d CCC subject prefixes", len(selected_subjects))
+            totals = _crawl_live_offerings(
+                conn, terms, term_ids, selected_subjects, lookups
+            )
         log.info("Totals: %s", totals)
+    finally:
         conn.close()
-        return
-
-    if subjects is None:
-        subjects = ccc_subject_prefixes(conn)
-        log.info("Harvested %d distinct CCC subject prefixes from DB", len(subjects))
-    else:
-        log.info("Using supplied subject list (%d prefixes)", len(subjects))
-    if not subjects:
-        log.error("No subjects to search — did you run the ASSIST ingester first?")
-        conn.close()
-        return
-
-    _prepare_offering_staging(conn)
-    totals = _empty_write_counts()
-    # Estimate: 0.6s throttle × 2 modalities × N subjects × pages
-    log.info("Estimated minimum runtime: %.1f min (pagination extends this)",
-             0.6 * 2 * len(subjects) * len(terms) / 60.0)
-    with CVCClient() as client:
-        for term in terms:
-            term_total = 0
-            for subtype, modality in MODALITY_SUBTYPES:
-                for si, subject in enumerate(subjects, start=1):
-                    pages_fetched = 0
-                    cards_for_subject = 0
-                    for page in range(1, MAX_PAGES_PER_QUERY + 1):
-                        html = client.search_html(term, subtype, subject, page=page)
-                        if html is None:
-                            conn.close()
-                            raise RuntimeError(
-                                "CVC refresh incomplete at "
-                                f"{term.code}/{subtype} subject={subject} page={page}; "
-                                "existing offerings were preserved"
-                            )
-                        if count_cards(html) == 0:
-                            break
-                        records = parse_search_html(html, term_code=term.code, modality=modality)
-                        counts = write_offerings(conn, records, term, staging=True)
-                        _add_write_counts(totals, counts)
-                        conn.commit()
-                        term_total += counts["written"]
-                        cards_for_subject += len(records)
-                        pages_fetched += 1
-                        # Heartbeat: isolates HTTP-side stalls from Python-side
-                        # stalls. If we stop seeing this line but httpx WARN
-                        # logs still fire, the hang is in parse/write/commit.
-                        log.info(
-                            "    %s/%s subj=%s p%d: %d cards parsed, %d written",
-                            term.code, subtype, subject, page,
-                            len(records), counts["written"],
-                        )
-                        if not has_next_page(html):
-                            break
-                        if page == MAX_PAGES_PER_QUERY:
-                            conn.close()
-                            raise RuntimeError(
-                                "CVC refresh hit the pagination safety cap at "
-                                f"{term.code}/{subtype} subject={subject}; "
-                                "existing offerings were preserved"
-                            )
-                    if cards_for_subject:
-                        log.info(
-                            "  %s / %s subj=%-8s [%d/%d] %d cards (%d pages)",
-                            term.code, subtype, subject, si, len(subjects),
-                            cards_for_subject, pages_fetched,
-                        )
-            log.info("Term %s: %d offerings written", term.code, term_total)
-    _publish_staged_offerings(conn, source="cvc", term_ids=term_ids)
-    log.info("Totals: %s", totals)
-    conn.close()
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -1,3 +1,5 @@
+import { dedupeBundleRows, renderSourceLabel } from "./ui-logic.js";
+
 const uniInput = document.getElementById("uni-input");
 const uniList = document.getElementById("uni-list");
 const courseInput = document.getElementById("course-input");
@@ -42,7 +44,7 @@ async function loadTerms() {
     for (const t of terms) {
       termSel.appendChild(el("option", { value: t.code }, t.label));
     }
-  } catch (e) {
+  } catch {
     // Non-fatal: the skip option stays as the only choice.
   }
 }
@@ -247,7 +249,7 @@ async function loadUniversities() {
     const res = await fetch("/universities.json");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     data = await res.json();
-  } catch (e) {
+  } catch {
     showOutput("error", "Failed to load universities. Has the ingester been run?");
     return;
   }
@@ -273,7 +275,7 @@ async function loadCoursesForUniversity(code) {
     const res = await fetch(`/api/courses?university=${encodeURIComponent(code)}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     data = await res.json();
-  } catch (e) {
+  } catch {
     courseCombo.setEnabled(false, "Failed to load courses");
     return;
   }
@@ -304,23 +306,6 @@ function renderCourse(c) {
 // to any major that hasn't overridden it, so attaching major names on
 // top of it is redundant. We only call out major names when the path is
 // *only* major-specific (no dept. summary backing it).
-function renderSourceLabel(sources) {
-  if (!sources || !sources.length) return { text: "", title: "" };
-  if (sources.includes("AllDepartments")) return { text: "", title: "" };
-
-  const specificMajors = sources
-    .filter(s => s && s.startsWith("Major: "))
-    .map(s => s.slice("Major: ".length));
-
-  if (specificMajors.length) {
-    const shown = specificMajors.slice(0, 3).join(", ");
-    const extra = specificMajors.length > 3 ? `, +${specificMajors.length - 3} more` : "";
-    return { text: "Major-specific: " + shown + extra, title: specificMajors.join("\n") };
-  }
-  if (sources.includes("AllMajors")) return { text: "Major-specific", title: "" };
-  return { text: "", title: "" };
-}
-
 // Agreement-year caption shown under the community-college code.
 // Rendered in a warmer color when this row's year is older than the
 // newest year in the result set (subtle stale-data flag).
@@ -346,68 +331,6 @@ function renderOfferingBadge(status) {
   if (status === "async_online") return el("span", { class: "badge async-online" }, "async online");
   if (status === "online_sync") return el("span", { class: "badge online-sync" }, "online sync");
   return el("span", { class: "badge unknown" }, "unknown");
-}
-
-function offeringRank(status) {
-  if (status === "async_online") return 3;
-  if (status === "online_sync") return 2;
-  return 1;
-}
-
-function courseIdentity(c) {
-  return [
-    c.prefix || "",
-    c.number || "",
-    c.title || "",
-    c.min_units == null ? "" : String(c.min_units),
-    c.max_units == null ? "" : String(c.max_units),
-  ].map(s => String(s).trim().toUpperCase()).join("|");
-}
-
-function dedupeBundleRows(rows) {
-  const byBundle = new Map();
-  const out = [];
-  let hidden = 0;
-
-  for (const row of rows) {
-    if (row.is_standalone || !row.companion_courses || !row.companion_courses.length) {
-      out.push(row);
-      continue;
-    }
-
-    const requiredCourses = [row.cc_course, ...row.companion_courses]
-      .map(courseIdentity)
-      .sort()
-      .join(";");
-    const receivingCourses = (row.receiving_companion_courses || [])
-      .map(courseIdentity)
-      .sort()
-      .join(";");
-    const key = [
-      row.cc_code,
-      row.academic_year_id || "",
-      requiredCourses,
-      receivingCourses,
-    ].join("||");
-
-    const existing = byBundle.get(key);
-    if (!existing) {
-      byBundle.set(key, row);
-      out.push(row);
-      continue;
-    }
-
-    hidden += 1;
-    existing.sources = Array.from(new Set([...(existing.sources || []), ...(row.sources || [])]));
-    if (offeringRank(row.offering_status) > offeringRank(existing.offering_status)) {
-      existing.offering_status = row.offering_status;
-    }
-    if (!existing.schedule_url && row.schedule_url) {
-      existing.schedule_url = row.schedule_url;
-    }
-  }
-
-  return { rows: out, hidden };
 }
 
 function renderScheduleCell(r, termLabel) {
@@ -584,7 +507,7 @@ async function runSearch() {
   try {
     res = await fetch(`/api/reverse?${params.toString()}`);
     data = await res.json();
-  } catch (e) {
+  } catch {
     showOutput("error", "Search failed. Check that the API server is running.");
     return;
   }
@@ -642,7 +565,11 @@ loadTerms();
   btn.addEventListener("click", () => {
     const next = effectiveTheme() === "dark" ? "light" : "dark";
     root.setAttribute("data-theme", next);
-    try { localStorage.setItem("theme", next); } catch (e) {}
+    try {
+      localStorage.setItem("theme", next);
+    } catch {
+      // Storage can be unavailable in privacy-restricted browsing contexts.
+    }
     refreshLabel();
   });
   if (media && media.addEventListener) {
