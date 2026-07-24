@@ -13,13 +13,12 @@ per college). To add a URL, look up the CCC's "Class Schedule" or
 from __future__ import annotations
 
 import sqlite3
-from typing import Dict, Optional
 
 # Keys are ASSIST codes with whitespace trimmed. Values are either a direct
 # URL to the college's class-schedule search page, or None if not yet
 # researched. Do not use the bare homepage as a fallback — prefer leaving
 # the entry None so the UI omits the link cleanly.
-SCHEDULE_URLS: Dict[str, Optional[str]] = {
+SCHEDULE_URLS: dict[str, str | None] = {
     # --- Verified in research ---
     "SMCC": "https://www.smc.edu/academics/classes/",
     "DAC": "https://www.deanza.edu/schedule/",

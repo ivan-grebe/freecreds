@@ -62,11 +62,11 @@ import re
 import sqlite3
 import sys
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 import httpx
 
@@ -85,11 +85,11 @@ MODALITY_SUBTYPES = (("online_async", "online_async"), ("online_sync", "online_s
 WRITE_COUNT_KEYS = ("written", "skipped_unknown_college", "skipped_missing_institution")
 
 
-def _empty_write_counts() -> Dict[str, int]:
+def _empty_write_counts() -> dict[str, int]:
     return {key: 0 for key in WRITE_COUNT_KEYS}
 
 
-def _add_write_counts(total: Dict[str, int], counts: Dict[str, int]) -> None:
+def _add_write_counts(total: dict[str, int], counts: dict[str, int]) -> None:
     for key in WRITE_COUNT_KEYS:
         total[key] += counts.get(key, 0)
 
@@ -145,11 +145,11 @@ def parse_search_html(
     *,
     term_code: str,
     modality: str,
-) -> List[OfferingRecord]:
+) -> list[OfferingRecord]:
     """Extract OfferingRecords from one rendered CVC search page."""
     chunks = _CARD_SPLIT.split(html)
     # First chunk is everything before the first card; skip it.
-    out: List[OfferingRecord] = []
+    out: list[OfferingRecord] = []
     for chunk in chunks[1:]:
         college_m = _COLLEGE_RE.search(chunk)
         link_m = _LINK_RE.search(chunk)
@@ -194,11 +194,11 @@ class _HomeCollegeOptionParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self._in_home_select = False
-        self._pending_value: Optional[str] = None
-        self._text: List[str] = []
-        self.options: List[Tuple[int, str]] = []
+        self._pending_value: str | None = None
+        self._text: list[str] = []
+        self.options: list[tuple[int, str]] = []
 
-    def handle_starttag(self, tag: str, attrs: List[Tuple[str, Optional[str]]]) -> None:
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         d = dict(attrs)
         if tag == "select" and d.get("id") == "filter_university_id":
             self._in_home_select = True
@@ -225,7 +225,7 @@ class _HomeCollegeOptionParser(HTMLParser):
             self._text.append(data)
 
 
-def parse_home_college_options(html: str) -> List[Tuple[int, str]]:
+def parse_home_college_options(html: str) -> list[tuple[int, str]]:
     p = _HomeCollegeOptionParser()
     p.feed(html)
     return p.options
@@ -236,10 +236,10 @@ class _SessionNameParser(HTMLParser):
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
-        self.session_names: Set[str] = set()
+        self.session_names: set[str] = set()
 
     def handle_starttag(
-        self, tag: str, attrs: List[Tuple[str, Optional[str]]]
+        self, tag: str, attrs: list[tuple[str, str | None]]
     ) -> None:
         if tag != "input":
             return
@@ -251,7 +251,7 @@ class _SessionNameParser(HTMLParser):
             self.session_names.add(value)
 
 
-def parse_session_names(html: str) -> Set[str]:
+def parse_session_names(html: str) -> set[str]:
     """Return session labels such as ``{"Summer 2026", "Fall 2026"}``."""
     parser = _SessionNameParser()
     parser.feed(html)
@@ -273,10 +273,10 @@ class CVCClient:
     def close(self) -> None:
         self._client.close()
 
-    def __enter__(self) -> "CVCClient":
+    def __enter__(self) -> CVCClient:
         return self
 
-    def __exit__(self, *exc: Any) -> None:
+    def __exit__(self, *exc: object) -> None:
         self.close()
 
     def _throttle(self) -> None:
@@ -285,7 +285,7 @@ class CVCClient:
             time.sleep(THROTTLE_S - gap)
         self._last_request_at = time.monotonic()
 
-    def available_session_names(self) -> Optional[Set[str]]:
+    def available_session_names(self) -> set[str] | None:
         """Fetch the term labels currently advertised by CVC.
 
         ``None`` means discovery failed, in which case callers should retain
@@ -320,7 +320,7 @@ class CVCClient:
         modality_subtype: str,
         subject: str,
         page: int = 1,
-    ) -> Optional[str]:
+    ) -> str | None:
         """GET one page of CVC search results. Returns HTML text or None on error."""
         self._throttle()
         params = [
@@ -355,7 +355,7 @@ def write_offerings(
     records: Iterable[OfferingRecord],
     term: Term,
     source: str = "cvc",
-) -> Dict[str, int]:
+) -> dict[str, int]:
     """Upsert records. `term` must already be in the terms table."""
     counts = _empty_write_counts()
     term_id = db.get_term_id_by_code(conn, term.code)
@@ -412,7 +412,7 @@ def ensure_term(conn: sqlite3.Connection, term: Term) -> int:
     )
 
 
-def ccc_subject_prefixes(conn: sqlite3.Connection) -> List[str]:
+def ccc_subject_prefixes(conn: sqlite3.Connection) -> list[str]:
     """Distinct subject prefixes for CCC courses already in the DB.
 
     This is the iteration set for CVC ingestion. A prefix not present here
@@ -432,10 +432,10 @@ def ccc_subject_prefixes(conn: sqlite3.Connection) -> List[str]:
 # --- Entry point -------------------------------------------------------------
 
 def ingest_terms(
-    term_codes: List[str],
+    term_codes: list[str],
     db_path: Path = db.DEFAULT_DB_PATH,
-    fixture_path: Optional[Path] = None,
-    subjects: Optional[List[str]] = None,
+    fixture_path: Path | None = None,
+    subjects: list[str] | None = None,
 ) -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     # httpx logs every request at INFO; that buries our own progress output.
@@ -541,7 +541,7 @@ def ingest_terms(
     conn.close()
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--terms", default="", help="Comma-separated term codes, e.g. FA26,SP27")
     p.add_argument("--db", default=str(db.DEFAULT_DB_PATH))
@@ -557,6 +557,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         codes = [c.strip() for c in args.terms.split(",") if c.strip()]
     else:
         from datetime import date
+
         from .terms import upcoming_terms
         codes = [t.code for t in upcoming_terms(date.today())]
 

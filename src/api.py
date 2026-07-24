@@ -6,7 +6,7 @@ import sqlite3
 from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -62,7 +62,7 @@ app = FastAPI(title="Reverse ASSIST Search", lifespan=_lifespan)
 
 
 @app.get("/api/terms")
-def list_terms() -> Dict[str, Any]:
+def list_terms() -> dict[str, Any]:
     """Four upcoming terms, starting from today. Clients populate the
     term-filter dropdown from this. Four covers the full CCC calendar
     (Spring / Summer / Fall / Winter intersession) from any start date.
@@ -74,7 +74,7 @@ def list_terms() -> Dict[str, Any]:
 @app.get("/api/courses")
 def list_courses(
     university: str = Query(..., description="Institution code, e.g. CSUFULL"),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     conn = _conn()
     try:
         uni = conn.execute(
@@ -102,7 +102,7 @@ def list_courses(
         conn.close()
 
 
-def _course_row_to_obj(row: sqlite3.Row) -> Dict[str, Any]:
+def _course_row_to_obj(row: sqlite3.Row) -> dict[str, Any]:
     return {
         "prefix": row["prefix"],
         "number": row["number"],
@@ -112,7 +112,7 @@ def _course_row_to_obj(row: sqlite3.Row) -> Dict[str, Any]:
     }
 
 
-def _offering_status(modality: Optional[str]) -> str:
+def _offering_status(modality: str | None) -> str:
     """Map internal modality to the status string surfaced in the API.
 
     'online_mixed' collapses to 'online_sync' for the purpose of the
@@ -126,7 +126,7 @@ def _offering_status(modality: Optional[str]) -> str:
     return "unknown"
 
 
-def _preferred_modality(existing: Optional[str], candidate: str) -> str:
+def _preferred_modality(existing: str | None, candidate: str) -> str:
     """Keep the most useful modality when duplicate offerings exist."""
     if existing is None:
         return candidate
@@ -137,8 +137,8 @@ def _preferred_modality(existing: Optional[str], candidate: str) -> str:
 
 def _resolve_requested_term(
     conn: sqlite3.Connection,
-    requested_term: Optional[str],
-) -> Tuple[Optional[str], Optional[int], Optional[str]]:
+    requested_term: str | None,
+) -> tuple[str | None, int | None, str | None]:
     """Return normalized (code, id, label) for a requested term.
 
     Unknown-but-valid term codes are inserted on demand so subsequent
@@ -170,17 +170,17 @@ def _resolve_requested_term(
     return parsed.code, term_id, parsed.label
 
 
-def _offering_key(row: sqlite3.Row) -> Tuple[int, str, str]:
+def _offering_key(row: sqlite3.Row) -> tuple[int, str, str]:
     return (row["cc_institution_id"], row["cc_prefix"].upper(), row["cc_number"].upper())
 
 
 def _query_offerings(
     conn: sqlite3.Connection,
-    rows: List[sqlite3.Row],
-    query_term_ids: List[int],
-) -> Dict[Tuple[int, str, str], str]:
+    rows: list[sqlite3.Row],
+    query_term_ids: list[int],
+) -> dict[tuple[int, str, str], str]:
     """Fetch offering modality for all reverse rows without per-row queries."""
-    offerings_map: Dict[Tuple[int, str, str], str] = {}
+    offerings_map: dict[tuple[int, str, str], str] = {}
     if not query_term_ids or not rows:
         return offerings_map
 
@@ -192,7 +192,7 @@ def _query_offerings(
     for start in range(0, len(offering_keys), max_keys_per_query):
         key_chunk = offering_keys[start:start + max_keys_per_query]
         key_marks = ",".join(["(?, ?, ?)"] * len(key_chunk))
-        params: List[Any] = [*query_term_ids]
+        params: list[Any] = [*query_term_ids]
         for inst_id, prefix_key, number_key in key_chunk:
             params.extend([inst_id, prefix_key, number_key])
         off_rows = conn.execute(
@@ -211,7 +211,7 @@ def _query_offerings(
     return offerings_map
 
 
-def _parse_id_list(value: Optional[str]) -> List[int]:
+def _parse_id_list(value: str | None) -> list[int]:
     # Keep behavior aligned with parseCompanionIds in functions/api/reverse.ts.
     if not value:
         return []
@@ -234,9 +234,9 @@ def reverse_lookup(
     prefix: str = Query(..., description="Course prefix (e.g. MATH)"),
     number: str = Query(..., description="Course number (e.g. 170B)"),
     standalone_only: bool = Query(False, description="Only return standalone equivalents"),
-    term: Optional[str] = Query(None, description="Canonical term code, e.g. FA26"),
+    term: str | None = Query(None, description="Canonical term code, e.g. FA26"),
     async_only: bool = Query(False, description="Return only rows confirmed as async online"),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     conn = _conn()
     try:
         uni = conn.execute(
@@ -298,7 +298,7 @@ def reverse_lookup(
           JOIN courses c_cc ON c_cc.id = ri.sending_course_id
           WHERE ri.receiving_course_id = ?
         """
-        params: List[Any] = [course["id"]]
+        params: list[Any] = [course["id"]]
         if year_id is not None:
             sql += " AND ri.academic_year_id = ?"
             params.append(year_id)
@@ -318,7 +318,7 @@ def reverse_lookup(
         #   - No term + async_only:   look across all ingested terms so the
         #                             filter means "offered async sometime".
         #   - No term, no filter:     skip the query entirely.
-        query_term_ids: List[int] = []
+        query_term_ids: list[int] = []
         if term_id is not None:
             query_term_ids = [term_id]
         elif async_only:
@@ -328,9 +328,9 @@ def reverse_lookup(
 
         offerings_map = _query_offerings(conn, rows, query_term_ids)
 
-        results: List[Dict[str, Any]] = []
-        all_course_ids: Set[int] = set()
-        parsed_rows: List[Tuple[sqlite3.Row, List[int], List[int]]] = []
+        results: list[dict[str, Any]] = []
+        all_course_ids: set[int] = set()
+        parsed_rows: list[tuple[sqlite3.Row, list[int], list[int]]] = []
         for r in rows:
             comps = _parse_id_list(r["companion_course_ids"])
             recv_comps = _parse_id_list(r["receiving_companion_course_ids"])
@@ -338,7 +338,7 @@ def reverse_lookup(
             all_course_ids.update(recv_comps)
             parsed_rows.append((r, comps, recv_comps))
 
-        course_map: Dict[int, Dict[str, Any]] = {}
+        course_map: dict[int, dict[str, Any]] = {}
         if all_course_ids:
             q_marks = ",".join(["?"] * len(all_course_ids))
             comp_rows = conn.execute(
@@ -402,7 +402,7 @@ def reverse_lookup(
           WHERE a.receiving_course_id = ?
             AND a.no_articulation_reason IS NOT NULL
         """
-        no_art_params: List[Any] = [course["id"]]
+        no_art_params: list[Any] = [course["id"]]
         if year_id is not None:
             no_art_sql += " AND a.academic_year_id = ?"
             no_art_params.append(year_id)

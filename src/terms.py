@@ -14,7 +14,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
-from typing import List
 
 SEASONS = ("SP", "SU", "FA", "WI")
 SEASON_LABELS = {"SP": "Spring", "SU": "Summer", "FA": "Fall", "WI": "Winter"}
@@ -73,8 +72,8 @@ def next_term(t: Term) -> Term:
     return _make("SP", t.year)
 
 
-def upcoming_terms(today: date, count: int = 3) -> List[Term]:
-    out: List[Term] = []
+def upcoming_terms(today: date, count: int = 3) -> list[Term]:
+    out: list[Term] = []
     t = current_term(today)
     for _ in range(count):
         out.append(t)

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 from urllib.parse import quote
 
 import httpx
@@ -49,10 +49,10 @@ class AssistClient:
     def close(self) -> None:
         self._client.close()
 
-    def __enter__(self) -> "AssistClient":
+    def __enter__(self) -> AssistClient:
         return self
 
-    def __exit__(self, *exc: Any) -> None:
+    def __exit__(self, *exc: object) -> None:
         self.close()
 
     def _throttle(self) -> None:
@@ -106,11 +106,11 @@ class AssistClient:
 
     # --- Endpoints ---
 
-    def get_institutions(self) -> List[Dict[str, Any]]:
+    def get_institutions(self) -> list[dict[str, Any]]:
         data = self._get("/Institutions/api")
         return self._unwrap_result(data, "/Institutions/api") or []
 
-    def get_agreements_from(self, institution_id: int) -> List[Dict[str, Any]]:
+    def get_agreements_from(self, institution_id: int) -> list[dict[str, Any]]:
         """List institutions that have published agreements *to* the given
         receiving institution, with the academic year IDs in which those
         agreements are published.
@@ -124,7 +124,7 @@ class AssistClient:
         sending_id: int,
         year_id: int,
         types: str = "Department",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Return per-{type} agreement keys and the "All{type}s" summary key
         between the two institutions for the given academic year.
 
@@ -139,7 +139,7 @@ class AssistClient:
         )
         return self._unwrap_result(self._get(path), path) or {}
 
-    def get_agreement(self, key: str) -> Dict[str, Any]:
+    def get_agreement(self, key: str) -> dict[str, Any]:
         """Fetch a full agreement payload by key
         (e.g. "74/110/to/7/AllDepartments").
         """
@@ -175,8 +175,8 @@ def latest_academic_year_id(client: AssistClient, reference_institution_id: int)
 
 
 def find_institution_by_code(
-    institutions: List[Dict[str, Any]], code: str
-) -> Dict[str, Any]:
+    institutions: list[dict[str, Any]], code: str
+) -> dict[str, Any]:
     target = code.strip().upper()
     for inst in institutions:
         if (inst.get("code") or "").strip().upper() == target:
@@ -184,7 +184,7 @@ def find_institution_by_code(
     raise KeyError(f"No institution with ASSIST code {code!r}")
 
 
-def institution_display_name(inst: Dict[str, Any], year: Optional[int] = None) -> str:
+def institution_display_name(inst: dict[str, Any], year: int | None = None) -> str:
     names = inst.get("names") or []
     if not names:
         return (inst.get("code") or "?").strip()

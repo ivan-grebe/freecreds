@@ -42,7 +42,7 @@ No production responses or database snapshots are committed, and test fixtures a
 
 ## Run locally
 
-Requirements: Python 3.8+, Node.js 22+, npm, and SQLite.
+Requirements: Python 3.10+, Node.js 22+, npm, and SQLite.
 
 ```bash
 git clone https://github.com/ivan-grebe/freecreds.git

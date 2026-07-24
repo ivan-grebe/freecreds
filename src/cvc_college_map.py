@@ -9,12 +9,9 @@ map, `cvc_fetcher` logs a warning and skips it rather than guessing.
 """
 from __future__ import annotations
 
-from typing import Dict, Optional
-
-
 # Keys are CVC display names lowercased with whitespace normalized.
 # Values are trimmed ASSIST codes as stored in institutions.code.
-NAME_TO_CODE: Dict[str, str] = {
+NAME_TO_CODE: dict[str, str] = {
     "allan hancock college": "AHC",
     "american river college": "ARC",
     "antelope valley college": "AVC",
@@ -136,7 +133,7 @@ NAME_TO_CODE: Dict[str, str] = {
 }
 
 
-def lookup(cvc_name: str) -> Optional[str]:
+def lookup(cvc_name: str) -> str | None:
     """Return the ASSIST code for a CVC college name, or None if unknown."""
     if not cvc_name:
         return None

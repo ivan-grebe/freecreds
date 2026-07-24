@@ -28,9 +28,9 @@ not surfaced in the UI today.
 from __future__ import annotations
 
 import json
-from typing import Tuple
+from collections.abc import Iterator
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any
 
 
 @dataclass
@@ -39,37 +39,37 @@ class CourseRef:
     prefix: str
     number: str
     title: str
-    min_units: Optional[float]
-    max_units: Optional[float]
+    min_units: float | None
+    max_units: float | None
     is_terminated: bool = False
 
 
 @dataclass
 class SendingGroup:
     conjunction: str  # 'And' | 'Or' | 'Single'
-    courses: List[CourseRef]
+    courses: list[CourseRef]
 
 
 @dataclass
 class ParsedArticulation:
     receiving_course: CourseRef
-    cross_listed_receiving: List[CourseRef] = field(default_factory=list)
-    sending_groups: List[SendingGroup] = field(default_factory=list)
-    no_articulation_reason: Optional[str] = None
-    raw: Dict[str, Any] = field(default_factory=dict)
+    cross_listed_receiving: list[CourseRef] = field(default_factory=list)
+    sending_groups: list[SendingGroup] = field(default_factory=list)
+    no_articulation_reason: str | None = None
+    raw: dict[str, Any] = field(default_factory=dict)
     # For AllMajors-sourced payloads, the specific major (e.g. "Biology, BS")
     # that this articulation belongs to, derived from the templateAssets
     # mapping in the normalizer. None for AllDepartments entries or when
     # the cell lookup couldn't resolve a major.
-    source_major: Optional[str] = None
+    source_major: str | None = None
     # Other receiving courses bundled with this one on the university side
     # (populated when the articulation came from a Series fan-out). Taking
     # any sending course in this articulation also yields credit for these
     # siblings. Empty for ordinary Course-type articulations.
-    receiving_siblings: List[CourseRef] = field(default_factory=list)
+    receiving_siblings: list[CourseRef] = field(default_factory=list)
 
 
-def _course_ref(obj: Dict[str, Any]) -> Optional[CourseRef]:
+def _course_ref(obj: dict[str, Any]) -> CourseRef | None:
     """Build a CourseRef from a course dict. Returns None on missing key
     fields rather than raising — malformed entries are skipped.
     """
@@ -93,11 +93,11 @@ def _course_ref(obj: Dict[str, Any]) -> Optional[CourseRef]:
     )
 
 
-def _parse_sending_groups(sa: Dict[str, Any]) -> List[SendingGroup]:
-    groups: List[SendingGroup] = []
+def _parse_sending_groups(sa: dict[str, Any]) -> list[SendingGroup]:
+    groups: list[SendingGroup] = []
     for grp in sa.get("items") or []:
         conjunction = grp.get("courseConjunction") or "Single"
-        courses: List[CourseRef] = []
+        courses: list[CourseRef] = []
         malformed_course = False
         for c in grp.get("items") or []:
             if c.get("type") != "Course":
@@ -115,7 +115,7 @@ def _parse_sending_groups(sa: Dict[str, Any]) -> List[SendingGroup]:
     return groups
 
 
-def _no_art_label(sa: Dict[str, Any]) -> Optional[str]:
+def _no_art_label(sa: dict[str, Any]) -> str | None:
     nar = sa.get("noArticulationReason")
     if not nar:
         return None
@@ -124,7 +124,7 @@ def _no_art_label(sa: Dict[str, Any]) -> Optional[str]:
     return str(nar)
 
 
-def iter_parsed_articulations(agreement_payload: Dict[str, Any]) -> Iterator[ParsedArticulation]:
+def iter_parsed_articulations(agreement_payload: dict[str, Any]) -> Iterator[ParsedArticulation]:
     """Yield one ParsedArticulation per Course-type receiving articulation.
 
     Accepts the raw dict returned by AssistClient.get_agreement() (the
@@ -148,13 +148,13 @@ def iter_parsed_articulations(agreement_payload: Dict[str, Any]) -> Iterator[Par
             # Other receiving types (if any) are still skipped.
 
 
-def _yield_course_articulation(a: Dict[str, Any]) -> Iterator[ParsedArticulation]:
+def _yield_course_articulation(a: dict[str, Any]) -> Iterator[ParsedArticulation]:
     course_obj = a.get("course") or {}
     recv = _course_ref(course_obj)
     if recv is None:
         return
 
-    cross_listed: List[CourseRef] = []
+    cross_listed: list[CourseRef] = []
     for xl in a.get("visibleCrossListedCourses") or []:
         r = _course_ref(xl)
         if r is not None:
@@ -174,7 +174,7 @@ def _yield_course_articulation(a: Dict[str, Any]) -> Iterator[ParsedArticulation
     )
 
 
-def _yield_series_articulation(a: Dict[str, Any]) -> Iterator[ParsedArticulation]:
+def _yield_series_articulation(a: dict[str, Any]) -> Iterator[ParsedArticulation]:
     """Fan out a Series (receiving-side AND/OR bundle) into one
     ParsedArticulation per member course. Cross-listed aliases are
     attributed to the specific series course they alias, via the
@@ -185,7 +185,7 @@ def _yield_series_articulation(a: Dict[str, Any]) -> Iterator[ParsedArticulation
     if not series_courses:
         return
 
-    xl_by_series_id: Dict[str, List[CourseRef]] = {}
+    xl_by_series_id: dict[str, list[CourseRef]] = {}
     for xl in a.get("visibleCrossListedCourses") or []:
         sid = xl.get("seriesCourseId")
         ref = _course_ref(xl)
@@ -199,7 +199,7 @@ def _yield_series_articulation(a: Dict[str, Any]) -> Iterator[ParsedArticulation
     source_major = a.get("_source_major")
 
     # Pre-resolve all series members; we need to know siblings per member.
-    resolved: List[Tuple[Dict[str, Any], CourseRef]] = []
+    resolved: list[tuple[dict[str, Any], CourseRef]] = []
     for c in series_courses:
         recv = _course_ref(c)
         if recv is not None:
@@ -226,10 +226,10 @@ class ReverseRow:
     receiving_course_parent_id: int
     sending_course_parent_id: int
     is_standalone: bool
-    companion_parent_ids: List[int]
+    companion_parent_ids: list[int]
 
 
-def build_reverse_rows(parsed: ParsedArticulation) -> List[ReverseRow]:
+def build_reverse_rows(parsed: ParsedArticulation) -> list[ReverseRow]:
     """Given a parsed articulation, emit reverse-index rows for every
     sending course. Each row references courses by stable
     courseIdentifierParentId; callers resolve to DB ids.
@@ -239,7 +239,7 @@ def build_reverse_rows(parsed: ParsedArticulation) -> List[ReverseRow]:
       - group conjunction "And" → each course is bundled; companions list
         the other courses in the same group
     """
-    rows: List[ReverseRow] = []
+    rows: list[ReverseRow] = []
     recv_id = parsed.receiving_course.course_identifier_parent_id
     for grp in parsed.sending_groups:
         ids = [c.course_identifier_parent_id for c in grp.courses]

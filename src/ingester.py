@@ -15,7 +15,7 @@ import sqlite3
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 from . import db
 from .assist_api import (
@@ -40,11 +40,11 @@ COUNT_KEYS = (
 )
 
 
-def _empty_counts() -> Dict[str, int]:
+def _empty_counts() -> dict[str, int]:
     return {key: 0 for key in COUNT_KEYS}
 
 
-def _add_counts(total: Dict[str, int], counts: Dict[str, int]) -> None:
+def _add_counts(total: dict[str, int], counts: dict[str, int]) -> None:
     for key in COUNT_KEYS:
         total[key] += counts.get(key, 0)
 
@@ -58,17 +58,17 @@ def _elapsed(started_at: float) -> str:
     return f"{minutes:d}m {seconds:02d}s"
 
 
-def _format_counts(counts: Dict[str, int]) -> str:
+def _format_counts(counts: dict[str, int]) -> str:
     return ", ".join(f"{key}={counts[key]}" for key in COUNT_KEYS if counts.get(key))
 
 
-def _institution_name(inst: Dict[str, Any], year_hint: Optional[int] = None) -> str:
+def _institution_name(inst: dict[str, Any], year_hint: int | None = None) -> str:
     return institution_display_name(inst, year=year_hint)
 
 
 def _find_all_summary_agreements(
     client: AssistClient, receiving_id: int, sending_id: int, year_id: int
-) -> List[Tuple[str, str]]:
+) -> list[tuple[str, str]]:
     """Locate every summary agreement key that covers articulations for a
     (target, CCC, year) triple. Returns a list of (key, schema_name) pairs
     where schema_name is "AllDepartments" or "AllMajors". An empty list
@@ -84,7 +84,7 @@ def _find_all_summary_agreements(
     their source tag, so the reverse-lookup layer can show each distinct
     articulation path and which view(s) produced it.
     """
-    summaries: List[Tuple[str, str]] = []
+    summaries: list[tuple[str, str]] = []
 
     resp = client.list_agreement_keys(receiving_id, sending_id, year_id, types="Department")
     reports = resp.get("allReports") or resp.get("reports") or []
@@ -101,7 +101,7 @@ def _find_all_summary_agreements(
     return summaries
 
 
-def _build_cell_to_major_map(template_assets: Any) -> Dict[str, str]:
+def _build_cell_to_major_map(template_assets: Any) -> dict[str, str]:
     """Walk the AllMajors `templateAssets` tree to build a mapping from
     articulation `templateCellId` → specific major name.
 
@@ -110,7 +110,7 @@ def _build_cell_to_major_map(template_assets: Any) -> Dict[str, str]:
     with an `id` (the templateCellId referenced by per-articulation entries).
     We collect every such id and tag it with its containing major.
     """
-    result: Dict[str, str] = {}
+    result: dict[str, str] = {}
     if isinstance(template_assets, str):
         try:
             template_assets = json.loads(template_assets)
@@ -119,7 +119,7 @@ def _build_cell_to_major_map(template_assets: Any) -> Dict[str, str]:
     if not isinstance(template_assets, list):
         return result
 
-    def gather_course_cell_ids(node: Any, into: Set[str]) -> None:
+    def gather_course_cell_ids(node: Any, into: set[str]) -> None:
         if isinstance(node, dict):
             # A course cell has both an `id` (string) and a `course` sibling.
             if isinstance(node.get("id"), str) and "course" in node:
@@ -136,7 +136,7 @@ def _build_cell_to_major_map(template_assets: Any) -> Dict[str, str]:
         name = (major.get("name") or "").strip()
         if not name:
             continue
-        ids: Set[str] = set()
+        ids: set[str] = set()
         gather_course_cell_ids(major.get("templateAssets") or [], ids)
         for cid in ids:
             # If a cell appears in multiple majors, the first wins. Rare in
@@ -145,7 +145,7 @@ def _build_cell_to_major_map(template_assets: Any) -> Dict[str, str]:
     return result
 
 
-def _normalize_majors_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+def _normalize_majors_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Reshape an AllMajors payload into the AllDepartments shape the parser
     expects, *and* tag each articulation with its specific major.
 
@@ -169,7 +169,7 @@ def _normalize_majors_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     cell_to_major = _build_cell_to_major_map(payload.get("templateAssets"))
 
-    flat: List[Dict[str, Any]] = []
+    flat: list[dict[str, Any]] = []
     for it in items:
         if not isinstance(it, dict):
             continue
@@ -189,10 +189,10 @@ def _normalize_majors_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _upsert_all_institutions(
-    conn: sqlite3.Connection, institutions: List[Dict[str, Any]]
-) -> Dict[int, int]:
+    conn: sqlite3.Connection, institutions: list[dict[str, Any]]
+) -> dict[int, int]:
     """Upsert every institution. Returns a map from ASSIST id → DB id."""
-    mapping: Dict[int, int] = {}
+    mapping: dict[int, int] = {}
     for inst in institutions:
         cat = inst.get("category")
         if not isinstance(cat, int):
@@ -213,19 +213,19 @@ def _upsert_all_institutions(
 
 def _ingest_one_agreement(
     conn: sqlite3.Connection,
-    agreement_payload: Dict[str, Any],
+    agreement_payload: dict[str, Any],
     university_db_id: int,
     cc_db_id: int,
     academic_year_id: int,
     source_context: str = "AllDepartments",
-) -> Dict[str, int]:
+) -> dict[str, int]:
     """Persist a single summary agreement payload (either AllDepartments or
     an AllMajors-normalized-to-department shape). Returns counts.
     """
     counts = _empty_counts()
 
     # Build course ID cache so we insert each course once per run.
-    course_cache: Dict[Tuple[int, int], int] = {}
+    course_cache: dict[tuple[int, int], int] = {}
 
     def ensure_course(parsed_course, institution_db_id: int) -> int:
         key = (institution_db_id, parsed_course.course_identifier_parent_id)
@@ -262,7 +262,7 @@ def _ingest_one_agreement(
                 counts["cross_listings"] += 1
 
         # Ensure all sending courses exist first
-        sending_db_ids: Dict[int, int] = {}  # parent_id → db id
+        sending_db_ids: dict[int, int] = {}  # parent_id → db id
         for grp in parsed.sending_groups:
             for c in grp.courses:
                 sending_db_ids[c.course_identifier_parent_id] = ensure_course(c, cc_db_id)
@@ -337,7 +337,7 @@ def _ingest_one_agreement(
 def ingest_university(
     university_code: str,
     db_path: Path = db.DEFAULT_DB_PATH,
-    limit_ccs: Optional[int] = None,
+    limit_ccs: int | None = None,
 ) -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -363,11 +363,11 @@ def ingest_university(
 def _ingest_university_from_context(
     conn: sqlite3.Connection,
     client: AssistClient,
-    institutions: List[Dict[str, Any]],
-    id_map: Dict[int, int],
+    institutions: list[dict[str, Any]],
+    id_map: dict[int, int],
     university_code: str,
-    limit_ccs: Optional[int] = None,
-) -> Dict[str, int]:
+    limit_ccs: int | None = None,
+) -> dict[str, int]:
     target_started_at = time.monotonic()
     university = find_institution_by_code(institutions, university_code)
     uni_assist_id = university["id"]
@@ -414,7 +414,7 @@ def _ingest_university_from_context(
             continue
 
         per_cc = _empty_counts()
-        sources_used: List[str] = []
+        sources_used: list[str] = []
         for summary_key, schema in summaries:
             summary_started_at = time.monotonic()
             log.info(
@@ -494,7 +494,7 @@ DEFAULT_TARGET_CATEGORIES = ("CSU", "UC", "AICCU")
 def ingest_all_targets(
     db_path: Path = db.DEFAULT_DB_PATH,
     categories: tuple = DEFAULT_TARGET_CATEGORIES,
-) -> Dict[str, List[str]]:
+) -> dict[str, list[str]]:
     """Run ingest_university for every target in the requested categories.
 
     Resilient to per-target errors: a target that fails (e.g. no published
@@ -513,7 +513,7 @@ def ingest_all_targets(
             id_map = _upsert_all_institutions(conn, institutions)
 
             wanted = {c.strip().upper() for c in categories}
-            targets: List[Tuple[str, str]] = []
+            targets: list[tuple[str, str]] = []
             for inst in institutions:
                 cat = inst.get("category")
                 cat_name = db.CATEGORY_MAP.get(cat) if isinstance(cat, int) else None
@@ -532,8 +532,8 @@ def ingest_all_targets(
                 ", ".join(f"{c}={n}" for c, n in by_cat.items()),
             )
 
-            succeeded: List[str] = []
-            failed: List[str] = []
+            succeeded: list[str] = []
+            failed: list[str] = []
             for i, (cat, code) in enumerate(targets, start=1):
                 target_started_at = time.monotonic()
                 log.info("=" * 60)
@@ -576,7 +576,7 @@ def ingest_all_targets(
         conn.close()
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--university",

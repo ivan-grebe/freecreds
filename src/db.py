@@ -6,8 +6,8 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, List, Optional, Tuple
 
 DEFAULT_DB_PATH = Path("data/assist.db")
 
@@ -255,8 +255,8 @@ def upsert_course(
     prefix: str,
     number: str,
     title: str,
-    min_units: Optional[float],
-    max_units: Optional[float],
+    min_units: float | None,
+    max_units: float | None,
     is_terminated: bool = False,
 ) -> int:
     cur = conn.execute(
@@ -292,9 +292,9 @@ def insert_articulation(
     sending_cc_id: int,
     university_id: int,
     academic_year_id: int,
-    no_articulation_reason: Optional[str],
+    no_articulation_reason: str | None,
     source_context: str = "AllDepartments",
-) -> Optional[int]:
+) -> int | None:
     """Insert an articulation row. Returns the row id, or None if a
     duplicate already exists (same receiving/sending/year/source_context).
     Duplicates within a single source happen when a course appears in
@@ -349,7 +349,7 @@ def insert_group_member(
 
 def insert_reverse_index_rows(
     conn: sqlite3.Connection,
-    rows: Iterable[Tuple[int, int, int, bool, List[int], int, str, List[int]]],
+    rows: Iterable[tuple[int, int, int, bool, list[int], int, str, list[int]]],
 ) -> None:
     """rows: iterable of (receiving_course_id, sending_cc_id, sending_course_id,
     is_standalone, companion_ids, academic_year_id, source_context,
@@ -390,8 +390,8 @@ def upsert_term(
     label: str,
     season: str,
     year: int,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
 ) -> int:
     cur = conn.execute(
         """INSERT INTO terms (code, label, season, year, start_date, end_date)
@@ -408,7 +408,7 @@ def upsert_term(
     return cur.fetchone()[0]
 
 
-def get_term_id_by_code(conn: sqlite3.Connection, code: str) -> Optional[int]:
+def get_term_id_by_code(conn: sqlite3.Connection, code: str) -> int | None:
     row = conn.execute("SELECT id FROM terms WHERE code = ?", (code,)).fetchone()
     return row[0] if row else None
 
@@ -416,13 +416,13 @@ def get_term_id_by_code(conn: sqlite3.Connection, code: str) -> Optional[int]:
 def upsert_class_offering(
     conn: sqlite3.Connection,
     institution_id: int,
-    course_id: Optional[int],
+    course_id: int | None,
     prefix: str,
     number: str,
     term_id: int,
     modality: str,
     source: str,
-    source_ref: Optional[str],
+    source_ref: str | None,
     fetched_at: str,
 ) -> None:
     conn.execute(

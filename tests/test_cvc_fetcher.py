@@ -10,15 +10,15 @@ from pathlib import Path
 
 from src import db
 from src.cvc_fetcher import (
-    CVCClient,
     CVC_HOME_UNIVERSITY_ID,
+    CVCClient,
     OfferingRecord,
     count_cards,
     ensure_term,
     has_next_page,
     parse_home_college_options,
-    parse_session_names,
     parse_search_html,
+    parse_session_names,
     write_offerings,
 )
 from src.terms import parse_code
