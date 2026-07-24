@@ -9,7 +9,7 @@ import sqlite3
 from pathlib import Path
 
 from src import db
-from src.cvc_fetcher import (
+from freecreds.cvc_fetcher import (
     CVC_HOME_UNIVERSITY_ID,
     CVCClient,
     OfferingRecord,
@@ -21,7 +21,7 @@ from src.cvc_fetcher import (
     parse_session_names,
     write_offerings,
 )
-from src.terms import parse_code
+from freecreds.terms import parse_code
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "cvc_response_sample.html"

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Generates frontend/universities.json from the local SQLite DB.
+// Generates src/frontend/universities.json from the local SQLite DB.
 // Served as a static asset — avoids a D1 query + ~4.8M row reads on every
 // page load (the old /api/universities endpoint did a DISTINCT scan of
 // articulations). Regenerate whenever the ingester runs; the list only
@@ -9,7 +9,7 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
-const [inputArg = "data/assist.db", outputArg = "frontend/universities.json"] =
+const [inputArg = "data/assist.db", outputArg = "src/frontend/universities.json"] =
   process.argv.slice(2);
 const inputPath = resolve(inputArg);
 const outputPath = resolve(outputArg);

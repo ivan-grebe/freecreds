@@ -5,7 +5,7 @@ from datetime import date
 
 import pytest
 
-from src.terms import current_term, next_term, parse_code, upcoming_terms
+from freecreds.terms import current_term, next_term, parse_code, upcoming_terms
 
 
 def test_current_term_spring():

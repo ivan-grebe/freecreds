@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { chunks, placeholders } from "../functions/_shared/d1";
+import { chunks, placeholders } from "../../functions/_shared/d1";
 import {
   parseBooleanParam,
   requireStringParam,
   safeScheduleUrl,
-} from "../functions/_shared/http";
+} from "../../functions/_shared/http";
 
 describe("HTTP helpers", () => {
   it("parses supported boolean values", () => {

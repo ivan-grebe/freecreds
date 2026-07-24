@@ -11,5 +11,5 @@
     "allowJs": false,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["functions/**/*.ts", "workers/**/*.ts"]
+  "include": ["functions/**/*.ts", "src/workers/**/*.ts"]
 }

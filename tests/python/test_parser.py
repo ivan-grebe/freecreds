@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from src.parser import (
+from freecreds.parser import (
     build_reverse_rows,
     iter_parsed_articulations,
 )

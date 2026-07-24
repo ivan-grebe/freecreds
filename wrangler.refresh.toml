@@ -1,5 +1,5 @@
 name = "freecreds-refresh"
-main = "workers/refresh.ts"
+main = "src/workers/refresh.ts"
 compatibility_date = "2026-04-22"
 migrations_dir = "migrations"
 

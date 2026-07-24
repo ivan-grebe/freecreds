@@ -32,10 +32,10 @@ FreeCreds helps California students find community-college courses that articula
 ASSIST and CVC sources
         |
         v
-Python ingestion (src/) --> local SQLite --> chunked D1 imports
+Python ingestion (src/freecreds) --> local SQLite --> chunked D1 imports
                                               |
                                               v
-Cloudflare Pages Functions (functions/) --> frontend/
+Cloudflare Pages Functions (functions/) --> src/frontend/
 ```
 
 No production responses or database snapshots are committed, and test fixtures are synthetic. The refresh workflow exports only the base tables it needs from the existing D1 database before updating CVC offerings.
@@ -60,8 +60,8 @@ npm run cf:dev
 Or run the local FastAPI version:
 
 ```bash
-python -m src.ingester --university CSUFULL
-python -m uvicorn src.api:app --reload --port 8000
+python -m freecreds.ingester --university CSUFULL
+python -m uvicorn freecreds.api:app --reload --port 8000
 ```
 
 ## Testing
@@ -95,8 +95,8 @@ npm run cf:db:schema
 Build a local database and export it in D1-sized chunks:
 
 ```bash
-python -m src.ingester --all
-python -m src.cvc_fetcher
+python -m freecreds.ingester --all
+python -m freecreds.cvc_fetcher
 npm run cf:db:dump
 npm run cf:db:import
 ```
@@ -128,14 +128,16 @@ The reverse endpoint also supports `term`, `async_only`, and `standalone_only`.
 ## Repository layout
 
 ```text
-frontend/     Static application
-functions/    Cloudflare Pages API
-workers/      Scheduled refresh dispatcher
-src/          Python clients, parsers, ingestion, SQLite, and FastAPI
+src/
+  freecreds/  Python clients, parsers, ingestion, SQLite, and FastAPI
+  frontend/   Static application
+  workers/    Scheduled refresh dispatcher
+functions/    Cloudflare Pages API (must stay at the repo root)
 migrations/   Ordered D1 migrations
 scripts/      Export, import, and validation utilities
-tests/        Python tests and synthetic fixtures
-tests-ts/     Production TypeScript tests
+tests/
+  python/     Python tests and synthetic fixtures
+  ts/         Production TypeScript tests
 ```
 
 ## License

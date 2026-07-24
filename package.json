@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "cf:dev": "wrangler pages dev frontend --d1 DB",
-    "cf:deploy": "wrangler pages deploy frontend --project-name freecreds",
+    "cf:dev": "wrangler pages dev src/frontend --d1 DB",
+    "cf:deploy": "wrangler pages deploy src/frontend --project-name freecreds",
     "cf:deploy:refresh": "wrangler deploy --config wrangler.refresh.toml",
     "cf:typecheck": "tsc --noEmit",
     "cf:db:create": "wrangler d1 create freecreds-db-v2",

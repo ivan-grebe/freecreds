@@ -124,7 +124,7 @@ jobs:
         run: |
           TERMS="$(python - <<'PY'
           from datetime import date
-          from src.terms import upcoming_terms
+          from freecreds.terms import upcoming_terms
           print(",".join(t.code for t in upcoming_terms(date.today(), count=4)))
           PY
           )"
@@ -159,11 +159,11 @@ jobs:
 
       - name: Refresh ASSIST articulations
         if: steps.refresh.outputs.kind == 'assist'
-        run: python -m src.ingester --all
+        run: python -m freecreds.ingester --all
 
       - name: Refresh CVC offerings
         if: steps.refresh.outputs.kind == 'cvc'
-        run: python -m src.cvc_fetcher --terms "${{ steps.terms.outputs.codes }}"
+        run: python -m freecreds.cvc_fetcher --terms "${{ steps.terms.outputs.codes }}"
 
       - name: Apply schedule URLs and seed upcoming terms
         run: |
@@ -171,8 +171,8 @@ jobs:
           from datetime import date
           from pathlib import Path
           from src import db
-          from src.schedule_urls import apply_schedule_urls
-          from src.terms import upcoming_terms
+          from freecreds.schedule_urls import apply_schedule_urls
+          from freecreds.terms import upcoming_terms
 
           connection = db.connect(Path("data/assist.db"))
           try:

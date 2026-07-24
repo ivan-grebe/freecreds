@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { currentTerm, nextTerm, parseTermCode } from "../functions/_shared/terms";
+import { currentTerm, nextTerm, parseTermCode } from "../../functions/_shared/terms";
 
 describe("term helpers", () => {
   it("selects the current term by month", () => {
