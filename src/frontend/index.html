@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <title>FreeCreds — Find Transferable Courses</title>
   <script>
     // Apply stored theme before first paint to avoid flash. If no stored
@@ -358,6 +359,23 @@
       transition: transform 160ms var(--ease-out);
     }
     details[open] summary::after { transform: rotate(90deg); }
+    details.glossary {
+      max-width: 46rem; margin: .1rem 0 0; padding: 0;
+      background: transparent; border-radius: 0; box-shadow: none;
+    }
+    details.glossary summary {
+      width: fit-content; color: var(--accent); font-size: 12px; font-weight: 650;
+    }
+    details.glossary summary::after { margin-left: .4rem; font-size: 18px; }
+    .glossary-grid {
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .75rem 1.25rem; margin: 0; padding: .25rem 0 .8rem;
+    }
+    .glossary-item { margin: 0; }
+    .glossary-item dt { color: var(--ink); font-size: 12px; font-weight: 650; }
+    .glossary-item dd {
+      margin: .15rem 0 0; color: var(--muted); font-size: 12px; text-wrap: pretty;
+    }
     .no-art-list { margin-top: .5rem; font-size: 13px; }
     .no-art-item { color: var(--muted); padding: .2rem 0; }
     .error { padding: 1rem; background: var(--error-bg); border: 1px solid var(--error-line); color: var(--warn);
@@ -543,6 +561,7 @@
       .checkbox-filter-row label {
         min-height: 44px;
       }
+      .glossary-grid { grid-template-columns: 1fr; gap: .7rem; }
       footer {
         margin-top: 2rem;
         padding: 0 .5rem;
@@ -629,6 +648,35 @@
       <label><input type="checkbox" id="combine-bundles" checked> Group equivalent course combinations</label>
       <label><input type="checkbox" id="async-only" disabled> Async online only</label>
     </div>
+    <details class="glossary">
+      <summary>What do these labels mean?</summary>
+      <dl class="glossary-grid">
+        <div class="glossary-item">
+          <dt>Standalone equivalent</dt>
+          <dd>One listed community-college course satisfies the university course by itself.</dd>
+        </div>
+        <div class="glossary-item">
+          <dt>AND bundle</dt>
+          <dd>You must complete every listed course in the bundle to receive the equivalency.</dd>
+        </div>
+        <div class="glossary-item">
+          <dt>Major-specific</dt>
+          <dd>This match comes from an agreement for a particular major and may not apply to every student.</dd>
+        </div>
+        <div class="glossary-item">
+          <dt>Async online</dt>
+          <dd>The class is online with no required live meeting time.</dd>
+        </div>
+        <div class="glossary-item">
+          <dt>Online sync</dt>
+          <dd>The class is online but has required live meeting times.</dd>
+        </div>
+        <div class="glossary-item">
+          <dt>Agreement year</dt>
+          <dd>The ASSIST catalog year that published the match. Verify older agreements before enrolling.</dd>
+        </div>
+      </dl>
+    </details>
   </div>
 
   <div id="output"></div>
