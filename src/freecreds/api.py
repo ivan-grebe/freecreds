@@ -6,7 +6,7 @@ import sqlite3
 from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -165,6 +165,29 @@ def _resolve_requested_term(
     )
     conn.commit()
     return parsed.code, term_id, parsed.label
+
+
+ResolvedTerm = tuple[str, int, str]
+
+
+def _resolve_requested_terms(
+    conn: sqlite3.Connection,
+    requested_terms: list[str] | None,
+) -> list[ResolvedTerm]:
+    unique_terms: list[str] = []
+    for value in requested_terms or []:
+        normalized = value.strip().upper()
+        if normalized and normalized not in unique_terms:
+            unique_terms.append(normalized)
+    if len(unique_terms) > 4:
+        raise HTTPException(400, "Select no more than four terms")
+
+    resolved: list[ResolvedTerm] = []
+    for value in unique_terms:
+        code, term_id, label = _resolve_requested_term(conn, value)
+        if code is not None and term_id is not None and label is not None:
+            resolved.append((code, term_id, label))
+    return resolved
 
 
 def _offering_key(row: sqlite3.Row) -> tuple[int, str, str]:
@@ -334,11 +357,11 @@ def _query_reverse_rows(
 
 def _resolve_offering_term_ids(
     conn: sqlite3.Connection,
-    term_id: int | None,
+    selected_term_ids: list[int],
     async_only: bool,
 ) -> list[int]:
-    if term_id is not None:
-        return [term_id]
+    if selected_term_ids:
+        return selected_term_ids
     if not async_only:
         return []
     upcoming_codes = [term.code for term in upcoming_terms(date.today(), count=4)]
@@ -408,7 +431,7 @@ def _build_reverse_results(
     course_map: dict[int, dict[str, Any]],
     offerings: dict[tuple[int, str, str], dict[int, str]],
     term_ids: list[int],
-    selected_term_id: int | None,
+    selected_terms: list[ResolvedTerm],
     async_only: bool,
 ) -> list[dict[str, Any]]:
     results = []
@@ -418,12 +441,34 @@ def _build_reverse_results(
             for course_id in companions
             if course_id in course_map
         ]
-        modality = (
-            _matching_bundle_modality(offerings, bundle_keys, term_ids, async_only)
-            if term_ids and len(bundle_keys) == len(companions) + 1
-            else None
-        )
-        if selected_term_id is not None and modality is None:
+        complete_bundle = len(bundle_keys) == len(companions) + 1
+        offering_terms = []
+        for code, selected_term_id, label in selected_terms:
+            modality = (
+                _matching_bundle_modality(
+                    offerings, bundle_keys, [selected_term_id], async_only
+                )
+                if complete_bundle
+                else None
+            )
+            if modality is not None:
+                offering_terms.append(
+                    {"code": code, "label": label, "status": _offering_status(modality)}
+                )
+
+        modality: str | None = None
+        if selected_terms:
+            for offering_term in offering_terms:
+                candidate = (
+                    "online_async"
+                    if offering_term["status"] == "async_online"
+                    else "online_sync"
+                )
+                modality = _preferred_modality(modality, candidate)
+        elif term_ids and complete_bundle:
+            modality = _matching_bundle_modality(offerings, bundle_keys, term_ids, async_only)
+
+        if selected_terms and not offering_terms:
             continue
         if async_only and modality != "online_async":
             continue
@@ -446,9 +491,8 @@ def _build_reverse_results(
                     course_map.get(course_id, {"id": course_id})
                     for course_id in receiving_companions
                 ],
-                "offering_status": (
-                    _offering_status(modality) if selected_term_id is not None else "unknown"
-                ),
+                "offering_status": _offering_status(modality) if selected_terms else "unknown",
+                "offering_terms": offering_terms,
                 "sources": [source for source in (row["sources_csv"] or "").split(",") if source],
                 "academic_year_id": row["academic_year_id"],
                 "academic_year": academic_year_label(row["academic_year_id"]),
@@ -492,7 +536,10 @@ def reverse_lookup(
     prefix: str = Query(..., description="Course prefix (e.g. MATH)"),
     number: str = Query(..., description="Course number (e.g. 170B)"),
     standalone_only: bool = Query(False, description="Only return standalone equivalents"),
-    term: str | None = Query(None, description="Canonical term code, e.g. FA26"),
+    term: Annotated[
+        list[str] | None,
+        Query(description="Repeat for each canonical term code"),
+    ] = None,
     async_only: bool = Query(False, description="Return only rows confirmed as async online"),
 ) -> dict[str, Any]:
     conn = _conn()
@@ -502,15 +549,16 @@ def reverse_lookup(
         if isinstance(course, JSONResponse):
             return course
         year_id = _latest_academic_year(conn, course["id"])
-        term_code, term_id, term_label = _resolve_requested_term(conn, term)
+        selected_terms = _resolve_requested_terms(conn, term)
+        selected_term_ids = [term_id for _, term_id, _ in selected_terms]
         rows = _query_reverse_rows(conn, course["id"], year_id, standalone_only)
-        query_term_ids = _resolve_offering_term_ids(conn, term_id, async_only)
+        query_term_ids = _resolve_offering_term_ids(conn, selected_term_ids, async_only)
         parsed_rows, companion_ids = _parse_reverse_rows(rows)
         course_map = _load_course_map(conn, companion_ids)
         offering_keys = _collect_offering_keys(rows, parsed_rows, course_map)
         offerings = _query_offerings(conn, offering_keys, query_term_ids)
         results = _build_reverse_results(
-            parsed_rows, course_map, offerings, query_term_ids, term_id, async_only
+            parsed_rows, course_map, offerings, query_term_ids, selected_terms, async_only
         )
         no_art_rows = _query_no_articulation(conn, course["id"], year_id)
 
@@ -519,7 +567,14 @@ def reverse_lookup(
                 "university": {"code": uni["code"].strip(), "name": uni["name"]},
                 "course": _course_row_to_obj(course),
                 "academic_year_id": year_id,
-                "term": {"code": term_code, "label": term_label} if term_id else None,
+                "term": (
+                    {"code": selected_terms[0][0], "label": selected_terms[0][2]}
+                    if len(selected_terms) == 1
+                    else None
+                ),
+                "terms": [
+                    {"code": code, "label": label} for code, _, label in selected_terms
+                ],
                 "async_only": async_only,
             },
             "results": results,

@@ -6,7 +6,7 @@ const courseInput = document.getElementById("course-input");
 const courseList = document.getElementById("course-list");
 const standaloneCheck = document.getElementById("standalone-only");
 const combineBundlesCheck = document.getElementById("combine-bundles");
-const termSel = document.getElementById("term-filter");
+const termFilter = document.getElementById("term-filter");
 const asyncCheck = document.getElementById("async-only");
 const form = document.getElementById("search-form");
 const output = document.getElementById("output");
@@ -41,22 +41,23 @@ async function loadTerms() {
     const res = await fetch("/api/terms");
     if (!res.ok) return;
     const { terms } = await res.json();
-    for (const t of terms) {
-      termSel.appendChild(el("option", { value: t.code }, t.label));
-    }
+    termFilter.replaceChildren(...terms.map((t) => el("label", { class: "term-option" }, [
+      el("input", { type: "checkbox", name: "term", value: t.code }),
+      el("span", {}, t.label),
+    ])));
   } catch {
-    // Non-fatal: the skip option stays as the only choice.
+    termFilter.replaceChildren(el("span", { class: "term-loading" }, "Terms unavailable"));
   }
 }
 
 // Async-only is only meaningful when the user has opted into offering checks.
 // Start disabled; enable once a term is picked. Clearing the term unchecks + disables.
 function syncAsyncToggle() {
-  const hasTerm = !!termSel.value;
+  const hasTerm = !!termFilter.querySelector('input[name="term"]:checked');
   asyncCheck.disabled = !hasTerm;
   if (!hasTerm) asyncCheck.checked = false;
 }
-termSel.addEventListener("change", syncAsyncToggle);
+termFilter.addEventListener("change", syncAsyncToggle);
 
 // --- Generic searchable combobox factory ---
 // Used for both the university input and the course input. Caller supplies
@@ -333,13 +334,30 @@ function renderOfferingBadge(status) {
   return el("span", { class: "badge unknown" }, "unknown");
 }
 
+function formatTermScope(terms) {
+  const labels = terms.map((term) => term.label);
+  if (labels.length === 0) return "any upcoming term";
+  if (labels.length === 1) return labels[0];
+  if (labels.length === 2) return `${labels[0]} or ${labels[1]}`;
+  return `${labels.slice(0, -1).join(", ")}, or ${labels.at(-1)}`;
+}
+
+function renderOfferingTerms(terms, fallbackStatus) {
+  if (!terms || terms.length === 0) return renderOfferingBadge(fallbackStatus);
+  return el("ul", { class: "offering-list" }, terms.map((term) => el("li", {}, [
+    el("span", { class: "offering-term" }, term.label),
+    renderOfferingBadge(term.status),
+  ])));
+}
+
 function renderResults(data, { animateSummary = true } = {}) {
   output.replaceChildren();
   const q = data.query;
-  const termLabel = q.term ? q.term.label : null;
-  const termScope = termLabel || "any ingested term";
-  const headerMeta = termLabel ? `${q.university.name}: ${renderCourse(q.course)} - ${termLabel}`
-                                : `${q.university.name}: ${renderCourse(q.course)}`;
+  const selectedTerms = Array.isArray(q.terms) ? q.terms : (q.term ? [q.term] : []);
+  const termScope = formatTermScope(selectedTerms);
+  const headerMeta = selectedTerms.length
+    ? `${q.university.name}: ${renderCourse(q.course)} - ${termScope}`
+    : `${q.university.name}: ${renderCourse(q.course)}`;
   output.appendChild(el("div", { class: "meta" }, headerMeta));
 
   const bundleFilter = combineBundlesCheck ? combineBundlesCheck.checked : true;
@@ -350,8 +368,8 @@ function renderResults(data, { animateSummary = true } = {}) {
   let headline;
   if (q.async_only) {
     headline = `Articulating colleges offering this course async online in ${termScope} (${n})`;
-  } else if (termLabel) {
-    headline = `Articulating colleges offering this course online in ${termLabel} (${n})`;
+  } else if (selectedTerms.length) {
+    headline = `Articulating colleges offering this course online in ${termScope} (${n})`;
   } else {
     headline = `Articulating community colleges (${n})`;
   }
@@ -377,15 +395,15 @@ function renderResults(data, { animateSummary = true } = {}) {
     ));
   }
 
-  const showOfferingCols = !!q.term;
+  const showOfferingCols = selectedTerms.length > 0;
 
   if (!visibleResults.length) {
     let msg;
     if (q.async_only) {
       msg = `No colleges confirmed to offer this course as async online in ${termScope}.`;
-    } else if (termLabel) {
-      msg = `No colleges confirmed to offer this course online in ${termLabel}. `
-        + `Pick "skip" above to see the full articulation list, or check CVC for current availability.`;
+    } else if (selectedTerms.length) {
+      msg = `No colleges confirmed to offer this course online in ${termScope}. `
+        + `Clear the selected terms to see all articulations, or check CVC for current availability.`;
     } else {
       msg = "No articulations found for this course.";
     }
@@ -401,7 +419,7 @@ function renderResults(data, { animateSummary = true } = {}) {
       el("th", {}, "Type"),
     ];
     if (showOfferingCols) {
-      headerCells.push(el("th", {}, "Offered"));
+      headerCells.push(el("th", {}, "Online availability"));
     }
     table.appendChild(el("thead", {}, el("tr", {}, headerCells)));
     const tbody = el("tbody");
@@ -442,7 +460,11 @@ function renderResults(data, { animateSummary = true } = {}) {
 
       const cells = [cc, courseCell, type];
       if (showOfferingCols) {
-        cells.push(el("td", { "data-label": "Offered" }, renderOfferingBadge(r.offering_status)));
+        cells.push(el(
+          "td",
+          { "data-label": "Online availability" },
+          renderOfferingTerms(r.offering_terms, r.offering_status),
+        ));
       }
       const row = el("tr", {}, cells);
       tbody.appendChild(row);
@@ -491,7 +513,9 @@ async function runSearch() {
     number: course.number,
   });
   if (standaloneCheck.checked) params.set("standalone_only", "true");
-  if (termSel.value) params.set("term", termSel.value);
+  for (const input of termFilter.querySelectorAll('input[name="term"]:checked')) {
+    params.append("term", input.value);
+  }
   if (asyncCheck.checked) params.set("async_only", "true");
   lastResultsData = null;
   showOutput("meta loading-state", "Searching...");

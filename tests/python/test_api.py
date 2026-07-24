@@ -159,6 +159,21 @@ def test_reverse_lookup_term_filter_uses_matching_course(client: TestClient):
     assert data["results"][0]["offering_status"] == "async_online"
 
 
+def test_reverse_lookup_accepts_multiple_terms(client: TestClient):
+    response = client.get(
+        "/api/reverse?university=CSUFULL&prefix=MATH&number=170A"
+        "&term=FA26&term=WI27"
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert [term["code"] for term in data["query"]["terms"]] == ["FA26", "WI27"]
+    assert [row["cc_code"] for row in data["results"]] == ["NEWCC"]
+    assert data["results"][0]["offering_terms"] == [
+        {"code": "FA26", "label": "Fall 2026", "status": "async_online"}
+    ]
+
+
 def test_reverse_lookup_requires_every_course_in_bundle_for_term(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

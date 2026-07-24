@@ -211,7 +211,7 @@
     .controls {
       position: relative;
       z-index: 1;
-      display: flex; gap: .75rem; flex-wrap: wrap; align-items: end;
+      display: grid; gap: 1rem;
       background: var(--panel);
       border: 0; border-radius: 26px;
       padding: 1rem; margin-bottom: 1.5rem;
@@ -221,6 +221,9 @@
         0 18px 46px rgba(35,67,106,.1),
         0 1px 2px rgba(24,41,65,.05);
       backdrop-filter: blur(20px) saturate(1.12);
+    }
+    .search-fields {
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem;
     }
     .field { display: flex; flex-direction: column; gap: .25rem; min-width: 12rem; flex: 1; }
     .field label { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
@@ -237,7 +240,6 @@
       border-color: var(--accent);
       box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent);
     }
-    .field.compact { min-width: 7rem; flex: 0; }
     .combo { position: relative; }
     .combo input[disabled] { background: var(--input-disabled-bg); color: var(--muted); cursor: not-allowed; }
     .combo-list {
@@ -293,16 +295,28 @@
       display: grid; gap: .6rem; font-size: 12px; color: var(--muted);
       grid-template-columns: minmax(0, 1fr);
       align-items: center;
+      padding-top: .85rem; border-top: 1px solid var(--line);
     }
     .filter-row label { display: inline-flex; gap: .3rem; align-items: center; min-height: 40px; cursor: pointer; }
     .term-filter-row {
-      display: grid;
-      grid-template-columns: max-content minmax(12rem, 1fr);
-      align-items: center;
-      gap: .6rem;
-      max-width: 28rem;
+      min-width: 0; margin: 0; padding: 0; border: 0;
     }
-    .term-filter-row > span { white-space: nowrap; }
+    .term-filter-row legend { color: var(--ink); font-size: 12px; font-weight: 650; }
+    .filter-hint { margin: .1rem 0 .45rem; color: var(--muted); font-size: 12px; }
+    .term-options { display: flex; flex-wrap: wrap; gap: .4rem; }
+    .term-options label {
+      min-height: 40px; padding: .35rem .65rem; border-radius: 10px;
+      background: var(--input-bg); box-shadow: var(--shadow-border);
+      transition-property: background-color, box-shadow, color;
+      transition-duration: var(--duration-fast);
+      transition-timing-function: var(--ease-out);
+    }
+    .term-options label:has(input:checked) {
+      background: var(--hover-bg); color: var(--ink);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
+    }
+    .term-loading { min-height: 40px; display: flex; align-items: center; color: var(--muted); }
+    .muted { color: var(--muted); font-weight: 400; }
     .checkbox-filter-row {
       display: grid;
       grid-template-columns: repeat(3, max-content);
@@ -315,6 +329,8 @@
       line-height: 18px;
       white-space: nowrap;
     }
+    .search-actions { display: flex; justify-content: flex-end; padding-top: .15rem; }
+    .search-actions button { width: min(100%, 12rem); }
     input[type="checkbox"] {
       width: 18px; height: 18px; min-height: 18px; flex: none; margin: 0; accent-color: var(--accent);
     }
@@ -338,6 +354,9 @@
     .badge.async-online { background: var(--badge-async-bg); color: var(--async); }
     .badge.online-sync { background: var(--badge-sync-bg); color: var(--sync); }
     .badge.unknown { background: var(--badge-unknown-bg); color: var(--unknown); }
+    .offering-list { display: grid; gap: .35rem; margin: 0; padding: 0; list-style: none; }
+    .offering-list li { display: flex; align-items: center; gap: .4rem; white-space: nowrap; }
+    .offering-term { color: var(--muted); font-size: 12px; }
     .cvc-callout { margin: 0 0 1rem; color: var(--muted); font-size: 13px; }
     .cvc-callout a { color: var(--accent); font-weight: 600; text-decoration: none; }
     .companion-list { margin: .3rem 0 0; padding-left: 1rem; font-size: 13px; color: var(--muted); }
@@ -427,13 +446,12 @@
         margin-bottom: 1rem;
         margin-top: .55rem;
       }
-      .field,
-      .field.compact {
+      .search-fields { grid-template-columns: 1fr; gap: .85rem; }
+      .field {
         min-width: 0;
         width: 100%;
         flex: none;
       }
-      .field.compact label { display: none; }
       select,
       input:not([type="checkbox"]),
       button {
@@ -466,12 +484,13 @@
         display: grid;
         grid-template-columns: 1fr;
         gap: .65rem;
-        padding: .8rem;
-        background: var(--panel);
+        padding: .85rem 0 0;
+        background: transparent;
         border: 0;
-        border-radius: 23px;
-        box-shadow: var(--shadow-border);
-        margin-bottom: 1rem;
+        border-top: 1px solid var(--line);
+        border-radius: 0;
+        box-shadow: none;
+        margin: 0;
       }
       .filter-row label,
       .term-filter-row {
@@ -479,21 +498,16 @@
         align-items: center;
       }
       .term-filter-row {
-        grid-template-columns: 1fr;
         max-width: none;
-        gap: .35rem;
       }
-      .term-filter-row > span { white-space: normal; }
+      .term-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .term-options label { min-height: 44px; }
       .checkbox-filter-row {
         display: grid;
         grid-template-columns: 1fr;
         gap: .15rem;
       }
-      .filter-row select {
-        margin-top: 0;
-        min-width: 0;
-        font-size: 16px;
-      }
+      .search-actions button { width: 100%; }
       .result-header {
         display: block;
         margin-top: 1.2rem;
@@ -615,6 +629,7 @@
   </div>
 
   <form id="search-form" class="controls enter-item enter-2" autocomplete="off">
+    <div class="search-fields">
     <div class="field combo">
       <label for="uni-input">University</label>
       <input type="text" id="uni-input" placeholder="Loading universities…"
@@ -631,20 +646,17 @@
              disabled required>
       <ul id="course-list" class="combo-list" role="listbox"></ul>
     </div>
-    <div class="field compact">
-      <label>&nbsp;</label>
-      <button type="submit" id="go">Search</button>
     </div>
-  </form>
-  <div class="filter-row enter-item enter-3" aria-label="Result filters">
-    <label class="term-filter-row">
-      <span>Check online class offerings for:</span>
-      <select id="term-filter">
-        <option value="" id="term-skip-option">Skip - articulations only</option>
-      </select>
-    </label>
+    <div class="filter-row" aria-label="Search options">
+      <fieldset class="term-filter-row">
+        <legend>Check online class offerings <span class="muted">(optional)</span></legend>
+        <p class="filter-hint">Choose any upcoming terms, or leave all unchecked for articulations only.</p>
+        <div id="term-filter" class="term-options">
+          <span class="term-loading">Loading terms...</span>
+        </div>
+      </fieldset>
     <div class="checkbox-filter-row">
-      <label><input type="checkbox" id="standalone-only"> Standalone equivalents only (hide AND bundles)</label>
+      <label><input type="checkbox" id="standalone-only" checked> Standalone equivalents only (hide AND bundles)</label>
       <label><input type="checkbox" id="combine-bundles" checked> Group equivalent course combinations</label>
       <label><input type="checkbox" id="async-only" disabled> Async online only</label>
     </div>
@@ -677,7 +689,11 @@
         </div>
       </dl>
     </details>
-  </div>
+    </div>
+    <div class="search-actions">
+      <button type="submit" id="go">Search</button>
+    </div>
+  </form>
 
   <div id="output"></div>
 </main>

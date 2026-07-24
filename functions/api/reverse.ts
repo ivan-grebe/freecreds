@@ -18,7 +18,6 @@ import {
   error,
   type Env,
   json,
-  optionalStringParam,
   parseBooleanParam,
   requireStringParam,
 } from "../_shared/http";
@@ -61,7 +60,13 @@ interface ReverseQuery {
   number: string;
   standaloneOnly: boolean;
   asyncOnly: boolean;
-  termCode: string | null;
+  termCodes: string[];
+}
+
+interface ResolvedTerm {
+  id: number | null;
+  code: string;
+  label: string;
 }
 
 interface CoursePayload {
@@ -109,14 +114,24 @@ function parseQuery(request: Request): ReverseQuery | Response {
   const number = requireStringParam(url, "number", NUMBER_PARAM);
   if (number instanceof Response) return number;
 
-  const termCode = optionalStringParam(url, "term", TERM_PARAM);
-  if (termCode instanceof Response) return termCode;
+  const termCodes: string[] = [];
+  for (const value of url.searchParams.getAll("term")) {
+    const normalized = value.trim().toUpperCase();
+    if (!normalized) continue;
+    if (normalized.length > TERM_PARAM.maxLength || !TERM_PARAM.pattern.test(normalized)) {
+      return error(400, `Invalid term; expected ${TERM_PARAM.description}`);
+    }
+    if (!termCodes.includes(normalized)) termCodes.push(normalized);
+  }
+  if (termCodes.length > 4) {
+    return error(400, "Select no more than four terms");
+  }
 
   return {
     university,
     prefix,
     number,
-    termCode,
+    termCodes,
     standaloneOnly: parseBooleanParam(url, "standalone_only"),
     asyncOnly: parseBooleanParam(url, "async_only"),
   };
@@ -189,28 +204,25 @@ async function getReceivingCourse(
   }, { status: 404 });
 }
 
-async function resolveTerm(
+async function resolveTerms(
   env: Env,
-  requestedCode: string | null,
-): Promise<{ id: number | null; code: string | null; label: string | null } | Response> {
-  if (!requestedCode) {
-    return { id: null, code: null, label: null };
-  }
+  requestedCodes: string[],
+): Promise<ResolvedTerm[]> {
+  if (!requestedCodes.length) return [];
 
-  const parsed = parseTermCode(requestedCode);
-  if (!parsed) {
-    return error(400, `Invalid term code: ${JSON.stringify(requestedCode)}`);
-  }
-
-  const term = await firstRow<TermRow>(
-    env.DB.prepare("SELECT id, label FROM terms WHERE code = ?").bind(parsed.code),
+  const rows = await allRows<TermRow & { code: string }>(
+    env.DB.prepare(
+      `SELECT id, code, label FROM terms WHERE code IN (${placeholders(requestedCodes.length)})`,
+    ).bind(...requestedCodes),
   );
+  const byCode = new Map(rows.map((row) => [row.code, row]));
 
-  return {
-    id: term?.id ?? null,
-    code: parsed.code,
-    label: term?.label ?? parsed.label,
-  };
+  return requestedCodes.map((code) => {
+    const parsed = parseTermCode(code);
+    if (!parsed) throw new Error(`Validated term could not be parsed: ${code}`);
+    const row = byCode.get(parsed.code);
+    return { id: row?.id ?? null, code: parsed.code, label: row?.label ?? parsed.label };
+  });
 }
 
 async function queryReverseRows(
@@ -255,12 +267,10 @@ async function queryReverseRows(
 
 async function resolveOfferingTermIds(
   env: Env,
-  termId: number | null,
+  selectedTermIds: number[],
   asyncOnly: boolean,
 ): Promise<number[]> {
-  if (termId != null) {
-    return [termId];
-  }
+  if (selectedTermIds.length) return selectedTermIds;
   if (!asyncOnly) {
     return [];
   }
@@ -433,9 +443,7 @@ function reverseCacheKey(query: ReverseQuery): string {
     standalone: query.standaloneOnly ? "1" : "0",
     async: query.asyncOnly ? "1" : "0",
   });
-  if (query.termCode) {
-    params.set("term", query.termCode);
-  }
+  for (const termCode of [...query.termCodes].sort()) params.append("term", termCode);
   return `reverse?${params.toString()}`;
 }
 
@@ -462,15 +470,12 @@ async function buildReverseResponse(env: Env, query: ReverseQuery): Promise<Resp
   );
   const yearId = year?.year_id ?? null;
 
-  const term = await resolveTerm(env, query.termCode);
-  if (term instanceof Response) {
-    return term;
-  }
-
-  const rows = term.code && term.id == null
+  const terms = await resolveTerms(env, query.termCodes);
+  const selectedTermIds = terms.flatMap((term) => term.id == null ? [] : [term.id]);
+  const rows = query.termCodes.length && !selectedTermIds.length
     ? []
     : await queryReverseRows(env, course.id, yearId, query.standaloneOnly);
-  const offeringTermIds = await resolveOfferingTermIds(env, term.id, query.asyncOnly);
+  const offeringTermIds = await resolveOfferingTermIds(env, selectedTermIds, query.asyncOnly);
 
   const parsedRows = rows.map((row) => ({
     row,
@@ -506,11 +511,26 @@ async function buildReverseResponse(env: Env, query: ReverseQuery): Promise<Resp
         bundleKeys.push(offeringKey(row.cc_institution_id, companion.prefix, companion.number));
       }
     }
-    const modality = offeringTermIds.length && bundleKeys.length === companionIds.length + 1
-      ? matchingBundleModality(offerings, bundleKeys, offeringTermIds, query.asyncOnly)
-      : undefined;
+    const offeringTerms = bundleKeys.length === companionIds.length + 1
+      ? terms.flatMap((term) => {
+        if (term.id == null) return [];
+        const modality = matchingBundleModality(offerings, bundleKeys, [term.id], query.asyncOnly);
+        return modality ? [{ code: term.code, label: term.label, status: offeringStatus(modality) }] : [];
+      })
+      : [];
+    const modality = query.termCodes.length
+      ? offeringTerms.reduce<string | undefined>(
+        (chosen, term) => preferredModality(
+          chosen,
+          term.status === "async_online" ? "online_async" : "online_sync",
+        ),
+        undefined,
+      )
+      : offeringTermIds.length && bundleKeys.length === companionIds.length + 1
+        ? matchingBundleModality(offerings, bundleKeys, offeringTermIds, query.asyncOnly)
+        : undefined;
 
-    if (term.id != null && !modality) {
+    if (query.termCodes.length && !offeringTerms.length) {
       continue;
     }
     if (query.asyncOnly && modality !== "online_async") {
@@ -527,7 +547,8 @@ async function buildReverseResponse(env: Env, query: ReverseQuery): Promise<Resp
       receiving_companion_courses: receivingCompanionIds.map(
         (id) => companionMap.get(id) || { id },
       ),
-      offering_status: term.id != null ? offeringStatus(modality) : "unknown",
+      offering_status: query.termCodes.length ? offeringStatus(modality) : "unknown",
+      offering_terms: offeringTerms,
       sources,
       academic_year_id: row.academic_year_id,
       academic_year: academicYearLabel(row.academic_year_id),
@@ -541,7 +562,8 @@ async function buildReverseResponse(env: Env, query: ReverseQuery): Promise<Resp
       university: { code: uni.code.trim(), name: uni.name },
       course: courseRowToObj(course),
       academic_year_id: yearId,
-      term: term.code ? { code: term.code, label: term.label } : null,
+      term: terms.length === 1 ? { code: terms[0].code, label: terms[0].label } : null,
+      terms: terms.map((term) => ({ code: term.code, label: term.label })),
       async_only: query.asyncOnly,
     },
     results,

@@ -33,10 +33,19 @@ describe("frontend browser smoke test", () => {
     await import("../../src/frontend/script.js");
 
     await vi.waitFor(() => {
-      const options = document.querySelectorAll("#term-filter option");
-      expect(options.length).toBeGreaterThan(1);
-      expect(options[1].textContent).toBe("Fall 2026");
+      const options = document.querySelectorAll<HTMLInputElement>(
+        '#term-filter input[name="term"]',
+      );
+      expect(options).toHaveLength(1);
+      expect(options[0].value).toBe("FA26");
+      expect(options[0].parentElement?.textContent).toContain("Fall 2026");
     });
+
+    expect(document.querySelector<HTMLInputElement>("#standalone-only")?.checked).toBe(true);
+    const termFilter = document.querySelector("#term-filter")!;
+    const searchButton = document.querySelector("#go")!;
+    expect(termFilter.compareDocumentPosition(searchButton) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
   });
 
   it("keeps dropdowns above the content that follows the search form", () => {
