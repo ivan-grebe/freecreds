@@ -250,6 +250,247 @@ def _parse_id_list(value: str | None) -> list[int]:
     ]
 
 
+def _find_university(conn: sqlite3.Connection, code: str) -> sqlite3.Row:
+    university = conn.execute(
+        "SELECT id, code, name FROM institutions WHERE code = ? COLLATE NOCASE",
+        (code.strip(),),
+    ).fetchone()
+    if not university:
+        raise HTTPException(404, f"Unknown university code {code!r}")
+    return university
+
+
+def _find_receiving_course(
+    conn: sqlite3.Connection,
+    university: sqlite3.Row,
+    prefix: str,
+    number: str,
+) -> sqlite3.Row | JSONResponse:
+    course = conn.execute(
+        """SELECT id, prefix, number, title, min_units, max_units
+           FROM courses
+           WHERE institution_id = ? AND prefix = ? COLLATE NOCASE
+             AND number = ? COLLATE NOCASE""",
+        (university["id"], prefix.strip(), number.strip()),
+    ).fetchone()
+    if course:
+        return course
+    candidates = conn.execute(
+        """SELECT prefix, number, title FROM courses
+           WHERE institution_id = ? AND prefix = ? COLLATE NOCASE
+           ORDER BY number LIMIT 20""",
+        (university["id"], prefix.strip()),
+    ).fetchall()
+    return JSONResponse(
+        status_code=404,
+        content={
+            "error": f"No {prefix} {number} at {university['code'].strip()}",
+            "did_you_mean": [dict(candidate) for candidate in candidates],
+        },
+    )
+
+
+def _latest_academic_year(conn: sqlite3.Connection, course_id: int) -> int | None:
+    row = conn.execute(
+        """SELECT MAX(academic_year_id) AS year_id FROM articulations
+           WHERE receiving_course_id = ?""",
+        (course_id,),
+    ).fetchone()
+    return row["year_id"] if row else None
+
+
+def _query_reverse_rows(
+    conn: sqlite3.Connection,
+    course_id: int,
+    year_id: int | None,
+    standalone_only: bool,
+) -> list[sqlite3.Row]:
+    sql = """
+      SELECT cc.code AS cc_code, cc.name AS cc_name,
+             cc.schedule_url AS cc_schedule_url,
+             c_cc.id AS cc_course_id,
+             c_cc.prefix AS cc_prefix, c_cc.number AS cc_number,
+             c_cc.title AS cc_title,
+             c_cc.min_units, c_cc.max_units,
+             ri.is_standalone_equivalent, ri.companion_course_ids,
+             ri.receiving_companion_course_ids,
+             ri.sending_cc_id AS cc_institution_id,
+             GROUP_CONCAT(DISTINCT ri.source_context) AS sources_csv,
+             ri.academic_year_id AS academic_year_id
+      FROM reverse_index ri
+      JOIN institutions cc ON cc.id = ri.sending_cc_id
+      JOIN courses c_cc ON c_cc.id = ri.sending_course_id
+      WHERE ri.receiving_course_id = ?
+    """
+    params: list[Any] = [course_id]
+    if year_id is not None:
+        sql += " AND ri.academic_year_id = ?"
+        params.append(year_id)
+    if standalone_only:
+        sql += " AND ri.is_standalone_equivalent = 1"
+    sql += (
+        " GROUP BY cc.id, c_cc.id, ri.is_standalone_equivalent,"
+        "          ri.companion_course_ids, ri.receiving_companion_course_ids"
+        " ORDER BY cc.name, c_cc.prefix, c_cc.number"
+    )
+    return conn.execute(sql, params).fetchall()
+
+
+def _resolve_offering_term_ids(
+    conn: sqlite3.Connection,
+    term_id: int | None,
+    async_only: bool,
+) -> list[int]:
+    if term_id is not None:
+        return [term_id]
+    if not async_only:
+        return []
+    upcoming_codes = [term.code for term in upcoming_terms(date.today(), count=4)]
+    marks = ",".join(["?"] * len(upcoming_codes))
+    return [
+        row[0]
+        for row in conn.execute(
+            f"SELECT id FROM terms WHERE code IN ({marks})", upcoming_codes
+        )
+    ]
+
+
+ParsedReverseRow = tuple[sqlite3.Row, list[int], list[int]]
+
+
+def _parse_reverse_rows(rows: list[sqlite3.Row]) -> tuple[list[ParsedReverseRow], set[int]]:
+    parsed_rows = []
+    course_ids: set[int] = set()
+    for row in rows:
+        companions = _parse_id_list(row["companion_course_ids"])
+        receiving_companions = _parse_id_list(row["receiving_companion_course_ids"])
+        course_ids.update(companions)
+        course_ids.update(receiving_companions)
+        parsed_rows.append((row, companions, receiving_companions))
+    return parsed_rows, course_ids
+
+
+def _load_course_map(
+    conn: sqlite3.Connection,
+    course_ids: set[int],
+) -> dict[int, dict[str, Any]]:
+    if not course_ids:
+        return {}
+    marks = ",".join(["?"] * len(course_ids))
+    rows = conn.execute(
+        f"""SELECT id, prefix, number, title, min_units, max_units
+            FROM courses WHERE id IN ({marks})""",
+        list(course_ids),
+    )
+    return {row["id"]: _course_row_to_obj(row) for row in rows}
+
+
+def _course_offering_key(
+    institution_id: int,
+    course: dict[str, Any],
+) -> tuple[int, str, str]:
+    return institution_id, course["prefix"].upper(), course["number"].upper()
+
+
+def _collect_offering_keys(
+    rows: list[sqlite3.Row],
+    parsed_rows: list[ParsedReverseRow],
+    course_map: dict[int, dict[str, Any]],
+) -> list[tuple[int, str, str]]:
+    keys = [_offering_key(row) for row in rows]
+    for row, companions, _ in parsed_rows:
+        keys.extend(
+            _course_offering_key(row["cc_institution_id"], course_map[course_id])
+            for course_id in companions
+            if course_id in course_map
+        )
+    return keys
+
+
+def _build_reverse_results(
+    parsed_rows: list[ParsedReverseRow],
+    course_map: dict[int, dict[str, Any]],
+    offerings: dict[tuple[int, str, str], dict[int, str]],
+    term_ids: list[int],
+    selected_term_id: int | None,
+    async_only: bool,
+) -> list[dict[str, Any]]:
+    results = []
+    for row, companions, receiving_companions in parsed_rows:
+        bundle_keys = [_offering_key(row)] + [
+            _course_offering_key(row["cc_institution_id"], course_map[course_id])
+            for course_id in companions
+            if course_id in course_map
+        ]
+        modality = (
+            _matching_bundle_modality(offerings, bundle_keys, term_ids, async_only)
+            if term_ids and len(bundle_keys) == len(companions) + 1
+            else None
+        )
+        if selected_term_id is not None and modality is None:
+            continue
+        if async_only and modality != "online_async":
+            continue
+        results.append(
+            {
+                "cc_code": row["cc_code"].strip(),
+                "cc_name": row["cc_name"],
+                "cc_course": {
+                    "prefix": row["cc_prefix"],
+                    "number": row["cc_number"],
+                    "title": row["cc_title"],
+                    "min_units": row["min_units"],
+                    "max_units": row["max_units"],
+                },
+                "is_standalone": bool(row["is_standalone_equivalent"]),
+                "companion_courses": [
+                    course_map.get(course_id, {"id": course_id}) for course_id in companions
+                ],
+                "receiving_companion_courses": [
+                    course_map.get(course_id, {"id": course_id})
+                    for course_id in receiving_companions
+                ],
+                "offering_status": (
+                    _offering_status(modality) if selected_term_id is not None else "unknown"
+                ),
+                "schedule_url": row["cc_schedule_url"],
+                "sources": [source for source in (row["sources_csv"] or "").split(",") if source],
+                "academic_year_id": row["academic_year_id"],
+                "academic_year": academic_year_label(row["academic_year_id"]),
+            }
+        )
+    return results
+
+
+def _query_no_articulation(
+    conn: sqlite3.Connection,
+    course_id: int,
+    year_id: int | None,
+) -> list[sqlite3.Row]:
+    sql = """
+      SELECT DISTINCT cc.code AS cc_code, cc.name AS cc_name,
+             a.no_articulation_reason
+      FROM articulations a
+      JOIN institutions cc ON cc.id = a.sending_cc_id
+      WHERE a.receiving_course_id = ?
+        AND a.no_articulation_reason IS NOT NULL
+    """
+    params: list[Any] = [course_id]
+    if year_id is not None:
+        sql += " AND a.academic_year_id = ?"
+        params.append(year_id)
+    sql += """
+        AND NOT EXISTS (
+          SELECT 1 FROM reverse_index ri
+          WHERE ri.receiving_course_id = a.receiving_course_id
+            AND ri.sending_cc_id = a.sending_cc_id
+            AND ri.academic_year_id = a.academic_year_id
+        )
+      ORDER BY cc.name
+    """
+    return conn.execute(sql, params).fetchall()
+
+
 @app.get("/api/reverse")
 def reverse_lookup(
     university: str = Query(..., description="Institution code"),
@@ -261,208 +502,22 @@ def reverse_lookup(
 ) -> dict[str, Any]:
     conn = _conn()
     try:
-        uni = conn.execute(
-            "SELECT id, code, name FROM institutions WHERE code = ? COLLATE NOCASE",
-            (university.strip(),),
-        ).fetchone()
-        if not uni:
-            raise HTTPException(404, f"Unknown university code {university!r}")
-
-        course = conn.execute(
-            """SELECT id, prefix, number, title, min_units, max_units
-               FROM courses
-               WHERE institution_id = ? AND prefix = ? COLLATE NOCASE
-                 AND number = ? COLLATE NOCASE""",
-            (uni["id"], prefix.strip(), number.strip()),
-        ).fetchone()
-        if not course:
-            # Return candidates on prefix match for a "did you mean?" list
-            candidates = conn.execute(
-                """SELECT prefix, number, title FROM courses
-                   WHERE institution_id = ? AND prefix = ? COLLATE NOCASE
-                   ORDER BY number LIMIT 20""",
-                (uni["id"], prefix.strip()),
-            ).fetchall()
-            return JSONResponse(
-                status_code=404,
-                content={
-                    "error": f"No {prefix} {number} at {uni['code'].strip()}",
-                    "did_you_mean": [dict(c) for c in candidates],
-                },
-            )
-
-        year_row = conn.execute(
-            """SELECT MAX(academic_year_id) AS year_id FROM articulations
-               WHERE receiving_course_id = ?""",
-            (course["id"],),
-        ).fetchone()
-        year_id = year_row["year_id"] if year_row else None
-
+        uni = _find_university(conn, university)
+        course = _find_receiving_course(conn, uni, prefix, number)
+        if isinstance(course, JSONResponse):
+            return course
+        year_id = _latest_academic_year(conn, course["id"])
         term_code, term_id, term_label = _resolve_requested_term(conn, term)
-
-        # Articulating CCs. GROUP BY the articulation path so the same path
-        # that appears under multiple sources (AllDepartments + AllMajors)
-        # collapses to one row with `sources` carrying both labels.
-        sql = """
-          SELECT cc.code AS cc_code, cc.name AS cc_name,
-                 cc.schedule_url AS cc_schedule_url,
-                 c_cc.id AS cc_course_id,
-                 c_cc.prefix AS cc_prefix, c_cc.number AS cc_number,
-                 c_cc.title AS cc_title,
-                 c_cc.min_units, c_cc.max_units,
-                 ri.is_standalone_equivalent, ri.companion_course_ids,
-                 ri.receiving_companion_course_ids,
-                 ri.sending_cc_id AS cc_institution_id,
-                 GROUP_CONCAT(DISTINCT ri.source_context) AS sources_csv,
-                 ri.academic_year_id AS academic_year_id
-          FROM reverse_index ri
-          JOIN institutions cc ON cc.id = ri.sending_cc_id
-          JOIN courses c_cc ON c_cc.id = ri.sending_course_id
-          WHERE ri.receiving_course_id = ?
-        """
-        params: list[Any] = [course["id"]]
-        if year_id is not None:
-            sql += " AND ri.academic_year_id = ?"
-            params.append(year_id)
-        if standalone_only:
-            sql += " AND ri.is_standalone_equivalent = 1"
-        sql += (
-            " GROUP BY cc.id, c_cc.id, ri.is_standalone_equivalent,"
-            "          ri.companion_course_ids, ri.receiving_companion_course_ids"
-            " ORDER BY cc.name, c_cc.prefix, c_cc.number"
+        rows = _query_reverse_rows(conn, course["id"], year_id, standalone_only)
+        query_term_ids = _resolve_offering_term_ids(conn, term_id, async_only)
+        parsed_rows, companion_ids = _parse_reverse_rows(rows)
+        course_map = _load_course_map(conn, companion_ids)
+        offering_keys = _collect_offering_keys(rows, parsed_rows, course_map)
+        offerings = _query_offerings(conn, offering_keys, query_term_ids)
+        results = _build_reverse_results(
+            parsed_rows, course_map, offerings, query_term_ids, term_id, async_only
         )
-
-        rows = conn.execute(sql, params).fetchall()
-
-        # Fetch offerings for every (cc, course) pair in one query — avoids N+1.
-        # Keyed by (institution_id, prefix, number).
-        #   - Specific term selected: look at that term only.
-        #   - No term + async_only:   look across all ingested terms so the
-        #                             filter means "offered async sometime".
-        #   - No term, no filter:     skip the query entirely.
-        query_term_ids: list[int] = []
-        if term_id is not None:
-            query_term_ids = [term_id]
-        elif async_only:
-            upcoming_codes = [t.code for t in upcoming_terms(date.today(), count=4)]
-            code_marks = ",".join(["?"] * len(upcoming_codes))
-            query_term_ids = [
-                r[0]
-                for r in conn.execute(
-                    f"SELECT id FROM terms WHERE code IN ({code_marks})",
-                    upcoming_codes,
-                ).fetchall()
-            ]
-
-        results: list[dict[str, Any]] = []
-        all_course_ids: set[int] = set()
-        parsed_rows: list[tuple[sqlite3.Row, list[int], list[int]]] = []
-        for r in rows:
-            comps = _parse_id_list(r["companion_course_ids"])
-            recv_comps = _parse_id_list(r["receiving_companion_course_ids"])
-            all_course_ids.update(comps)
-            all_course_ids.update(recv_comps)
-            parsed_rows.append((r, comps, recv_comps))
-
-        course_map: dict[int, dict[str, Any]] = {}
-        if all_course_ids:
-            q_marks = ",".join(["?"] * len(all_course_ids))
-            comp_rows = conn.execute(
-                f"""SELECT id, prefix, number, title, min_units, max_units
-                    FROM courses WHERE id IN ({q_marks})""",
-                list(all_course_ids),
-            ).fetchall()
-            for cr in comp_rows:
-                course_map[cr["id"]] = _course_row_to_obj(cr)
-
-        offering_keys = [_offering_key(r) for r in rows]
-        for r, comps, _ in parsed_rows:
-            offering_keys.extend(
-                (r["cc_institution_id"], course_map[cid]["prefix"].upper(),
-                 course_map[cid]["number"].upper())
-                for cid in comps
-                if cid in course_map
-            )
-        offerings_map = _query_offerings(conn, offering_keys, query_term_ids)
-
-        for r, comps, recv_comps in parsed_rows:
-            bundle_keys = [_offering_key(r)] + [
-                (r["cc_institution_id"], course_map[cid]["prefix"].upper(),
-                 course_map[cid]["number"].upper())
-                for cid in comps
-                if cid in course_map
-            ]
-            modality = (
-                _matching_bundle_modality(
-                    offerings_map, bundle_keys, query_term_ids, async_only
-                )
-                if query_term_ids and len(bundle_keys) == len(comps) + 1
-                else None
-            )
-            # Per-row status only has meaning when the user picked a specific term.
-            # In "Any term" mode we still use modality for filtering, but the UI
-            # hides the offered column (nothing to display per-row).
-            status = _offering_status(modality) if term_id is not None else "unknown"
-
-            # When a term is selected, drop rows with no offering record —
-            # the result set becomes "articulates AND is offered this term"
-            # instead of "articulates (with a possibly-unknown status)".
-            if term_id is not None and modality is None:
-                continue
-
-            if async_only and modality != "online_async":
-                continue
-
-            sources = [s for s in (r["sources_csv"] or "").split(",") if s]
-            row_year_id = r["academic_year_id"]
-            results.append({
-                "cc_code": r["cc_code"].strip(),
-                "cc_name": r["cc_name"],
-                "cc_course": {
-                    "prefix": r["cc_prefix"],
-                    "number": r["cc_number"],
-                    "title": r["cc_title"],
-                    "min_units": r["min_units"],
-                    "max_units": r["max_units"],
-                },
-                "is_standalone": bool(r["is_standalone_equivalent"]),
-                "companion_courses": [course_map.get(cid, {"id": cid}) for cid in comps],
-                "receiving_companion_courses": [
-                    course_map.get(cid, {"id": cid}) for cid in recv_comps
-                ],
-                "offering_status": status,
-                "schedule_url": r["cc_schedule_url"],
-                "sources": sources,
-                "academic_year_id": row_year_id,
-                "academic_year": academic_year_label(row_year_id) if row_year_id else None,
-            })
-
-        # No-articulation list. A CCC qualifies only if EVERY source we
-        # know about for that pair reports "no articulation" — otherwise
-        # a concurrent Major-view articulation would be contradicted by
-        # listing the CCC here.
-        no_art_sql = """
-          SELECT DISTINCT cc.code AS cc_code, cc.name AS cc_name,
-                 a.no_articulation_reason
-          FROM articulations a
-          JOIN institutions cc ON cc.id = a.sending_cc_id
-          WHERE a.receiving_course_id = ?
-            AND a.no_articulation_reason IS NOT NULL
-        """
-        no_art_params: list[Any] = [course["id"]]
-        if year_id is not None:
-            no_art_sql += " AND a.academic_year_id = ?"
-            no_art_params.append(year_id)
-        no_art_sql += """
-            AND NOT EXISTS (
-              SELECT 1 FROM reverse_index ri
-              WHERE ri.receiving_course_id = a.receiving_course_id
-                AND ri.sending_cc_id = a.sending_cc_id
-                AND ri.academic_year_id = a.academic_year_id
-            )
-          ORDER BY cc.name
-        """
-        no_art_rows = conn.execute(no_art_sql, no_art_params).fetchall()
+        no_art_rows = _query_no_articulation(conn, course["id"], year_id)
 
         return {
             "query": {
@@ -475,11 +530,11 @@ def reverse_lookup(
             "results": results,
             "no_articulation": [
                 {
-                    "cc_code": r["cc_code"].strip(),
-                    "cc_name": r["cc_name"],
-                    "reason": r["no_articulation_reason"],
+                    "cc_code": row["cc_code"].strip(),
+                    "cc_name": row["cc_name"],
+                    "reason": row["no_articulation_reason"],
                 }
-                for r in no_art_rows
+                for row in no_art_rows
             ],
         }
     finally:

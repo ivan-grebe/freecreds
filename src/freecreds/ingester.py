@@ -24,7 +24,7 @@ from .assist_api import (
     institution_display_name,
     latest_academic_year_id,
 )
-from .parser import build_reverse_rows, iter_parsed_articulations
+from .parser import CourseRef, ParsedArticulation, build_reverse_rows, iter_parsed_articulations
 
 log = logging.getLogger(__name__)
 
@@ -101,6 +101,20 @@ def _find_all_summary_agreements(
     return summaries
 
 
+def _course_cell_ids(node: Any) -> set[str]:
+    if isinstance(node, dict):
+        found = {node["id"]} if isinstance(node.get("id"), str) and "course" in node else set()
+        for value in node.values():
+            found.update(_course_cell_ids(value))
+        return found
+    if isinstance(node, list):
+        found = set()
+        for value in node:
+            found.update(_course_cell_ids(value))
+        return found
+    return set()
+
+
 def _build_cell_to_major_map(template_assets: Any) -> dict[str, str]:
     """Walk the AllMajors `templateAssets` tree to build a mapping from
     articulation `templateCellId` → specific major name.
@@ -119,26 +133,13 @@ def _build_cell_to_major_map(template_assets: Any) -> dict[str, str]:
     if not isinstance(template_assets, list):
         return result
 
-    def gather_course_cell_ids(node: Any, into: set[str]) -> None:
-        if isinstance(node, dict):
-            # A course cell has both an `id` (string) and a `course` sibling.
-            if isinstance(node.get("id"), str) and "course" in node:
-                into.add(node["id"])
-            for v in node.values():
-                gather_course_cell_ids(v, into)
-        elif isinstance(node, list):
-            for v in node:
-                gather_course_cell_ids(v, into)
-
     for major in template_assets:
         if not isinstance(major, dict):
             continue
         name = (major.get("name") or "").strip()
         if not name:
             continue
-        ids: set[str] = set()
-        gather_course_cell_ids(major.get("templateAssets") or [], ids)
-        for cid in ids:
+        for cid in _course_cell_ids(major.get("templateAssets") or []):
             # If a cell appears in multiple majors, the first wins. Rare in
             # practice; the pay-per-major entries are usually distinct.
             result.setdefault(cid, name)
@@ -211,6 +212,120 @@ def _upsert_all_institutions(
     return mapping
 
 
+CourseCache = dict[tuple[int, int], int]
+
+
+def _ensure_course(
+    conn: sqlite3.Connection,
+    course: CourseRef,
+    institution_id: int,
+    cache: CourseCache,
+    counts: dict[str, int],
+) -> int:
+    key = institution_id, course.course_identifier_parent_id
+    if key not in cache:
+        cache[key] = db.upsert_course(
+            conn,
+            institution_id=institution_id,
+            course_identifier_parent_id=course.course_identifier_parent_id,
+            prefix=course.prefix,
+            number=course.number,
+            title=course.title,
+            min_units=course.min_units,
+            max_units=course.max_units,
+            is_terminated=course.is_terminated,
+        )
+        counts["courses"] += 1
+    return cache[key]
+
+
+def _persist_cross_listings(
+    conn: sqlite3.Connection,
+    parsed: ParsedArticulation,
+    receiving_id: int,
+    university_id: int,
+    cache: CourseCache,
+    counts: dict[str, int],
+) -> list[int]:
+    alias_ids = []
+    for alias in parsed.cross_listed_receiving:
+        alias_id = _ensure_course(conn, alias, university_id, cache, counts)
+        alias_ids.append(alias_id)
+        if db.insert_cross_listing(conn, receiving_id, alias_id):
+            counts["cross_listings"] += 1
+    return alias_ids
+
+
+def _ensure_sending_courses(
+    conn: sqlite3.Connection,
+    parsed: ParsedArticulation,
+    cc_id: int,
+    cache: CourseCache,
+    counts: dict[str, int],
+) -> dict[int, int]:
+    return {
+        course.course_identifier_parent_id: _ensure_course(
+            conn, course, cc_id, cache, counts
+        )
+        for group in parsed.sending_groups
+        for course in group.courses
+    }
+
+
+def _persist_course_groups(
+    conn: sqlite3.Connection,
+    articulation_id: int,
+    parsed: ParsedArticulation,
+    sending_ids: dict[int, int],
+    counts: dict[str, int],
+) -> None:
+    for group_position, group in enumerate(parsed.sending_groups):
+        group_id = db.insert_course_group(
+            conn, articulation_id, group.conjunction, group_position
+        )
+        counts["course_groups"] += 1
+        for course_position, course in enumerate(group.courses):
+            db.insert_group_member(
+                conn,
+                group_id,
+                sending_ids[course.course_identifier_parent_id],
+                course_position,
+            )
+            counts["group_members"] += 1
+
+
+def _persist_reverse_rows(
+    conn: sqlite3.Connection,
+    parsed: ParsedArticulation,
+    receiving_ids: list[int],
+    receiving_sibling_ids: list[int],
+    sending_ids: dict[int, int],
+    cc_id: int,
+    academic_year_id: int,
+    source: str,
+    counts: dict[str, int],
+) -> None:
+    rows = []
+    reverse_rows = build_reverse_rows(parsed)
+    for receiving_id in receiving_ids:
+        for reverse_row in reverse_rows:
+            rows.append(
+                (
+                    receiving_id,
+                    cc_id,
+                    sending_ids[reverse_row.sending_course_parent_id],
+                    reverse_row.is_standalone,
+                    [sending_ids[parent_id] for parent_id in reverse_row.companion_parent_ids],
+                    academic_year_id,
+                    source,
+                    receiving_sibling_ids,
+                )
+            )
+    if rows:
+        db.insert_reverse_index_rows(conn, rows)
+        counts["reverse_rows"] += len(rows)
+
+
 def _ingest_one_agreement(
     conn: sqlite3.Connection,
     agreement_payload: dict[str, Any],
@@ -224,49 +339,21 @@ def _ingest_one_agreement(
     """
     counts = _empty_counts()
 
-    # Build course ID cache so we insert each course once per run.
-    course_cache: dict[tuple[int, int], int] = {}
-
-    def ensure_course(parsed_course, institution_db_id: int) -> int:
-        key = (institution_db_id, parsed_course.course_identifier_parent_id)
-        if key in course_cache:
-            return course_cache[key]
-        cid = db.upsert_course(
-            conn,
-            institution_id=institution_db_id,
-            course_identifier_parent_id=parsed_course.course_identifier_parent_id,
-            prefix=parsed_course.prefix,
-            number=parsed_course.number,
-            title=parsed_course.title,
-            min_units=parsed_course.min_units,
-            max_units=parsed_course.max_units,
-            is_terminated=parsed_course.is_terminated,
-        )
-        course_cache[key] = cid
-        counts["courses"] += 1
-        return cid
+    course_cache: CourseCache = {}
 
     for parsed in iter_parsed_articulations(agreement_payload):
-        recv_db_id = ensure_course(parsed.receiving_course, university_db_id)
-        # Per-row source context: use the specific major name when we know
-        # it, else fall back to the payload-level tag (e.g. "AllMajors" or
-        # "AllDepartments").
+        recv_db_id = _ensure_course(
+            conn, parsed.receiving_course, university_db_id, course_cache, counts
+        )
         row_source = (
             f"Major: {parsed.source_major}" if parsed.source_major else source_context
         )
-
-        # Cross-listed receiving aliases — index them at the university too
-        for xl in parsed.cross_listed_receiving:
-            alias_db_id = ensure_course(xl, university_db_id)
-            if db.insert_cross_listing(conn, recv_db_id, alias_db_id):
-                counts["cross_listings"] += 1
-
-        # Ensure all sending courses exist first
-        sending_db_ids: dict[int, int] = {}  # parent_id → db id
-        for grp in parsed.sending_groups:
-            for c in grp.courses:
-                sending_db_ids[c.course_identifier_parent_id] = ensure_course(c, cc_db_id)
-
+        alias_ids = _persist_cross_listings(
+            conn, parsed, recv_db_id, university_db_id, course_cache, counts
+        )
+        sending_db_ids = _ensure_sending_courses(
+            conn, parsed, cc_db_id, course_cache, counts
+        )
         art_id = db.insert_articulation(
             conn,
             receiving_course_id=recv_db_id,
@@ -289,47 +376,22 @@ def _ingest_one_agreement(
             # the group+reverse-index inserts; they already exist.
             continue
 
-        # Persist AND/OR tree
-        for gi, grp in enumerate(parsed.sending_groups):
-            group_row_id = db.insert_course_group(conn, art_id, grp.conjunction, gi)
-            counts["course_groups"] += 1
-            for ci, c in enumerate(grp.courses):
-                db.insert_group_member(
-                    conn, group_row_id, sending_db_ids[c.course_identifier_parent_id], ci
-                )
-                counts["group_members"] += 1
-
-        # Reverse-index rows — for each sending course, including cross-listed receiving
-        receiving_targets = [recv_db_id] + [
-            course_cache[(university_db_id, xl.course_identifier_parent_id)]
-            for xl in parsed.cross_listed_receiving
-        ]
-        # Series fan-out leaves us with the *other* receiving members of the
-        # same series. Taking any sending course also yields credit for them.
+        _persist_course_groups(conn, art_id, parsed, sending_db_ids, counts)
         receiving_sibling_ids = [
-            ensure_course(sib, university_db_id) for sib in parsed.receiving_siblings
+            _ensure_course(conn, sibling, university_db_id, course_cache, counts)
+            for sibling in parsed.receiving_siblings
         ]
-        reverse_rows = build_reverse_rows(parsed)
-        row_tuples = []
-        for target_recv_id in receiving_targets:
-            for r in reverse_rows:
-                sending_db_id = sending_db_ids[r.sending_course_parent_id]
-                companions_db_ids = [sending_db_ids[p] for p in r.companion_parent_ids]
-                row_tuples.append(
-                    (
-                        target_recv_id,
-                        cc_db_id,
-                        sending_db_id,
-                        r.is_standalone,
-                        companions_db_ids,
-                        academic_year_id,
-                        row_source,
-                        receiving_sibling_ids,
-                    )
-                )
-        if row_tuples:
-            db.insert_reverse_index_rows(conn, row_tuples)
-            counts["reverse_rows"] += len(row_tuples)
+        _persist_reverse_rows(
+            conn,
+            parsed,
+            [recv_db_id, *alias_ids],
+            receiving_sibling_ids,
+            sending_db_ids,
+            cc_db_id,
+            academic_year_id,
+            row_source,
+            counts,
+        )
 
     return counts
 

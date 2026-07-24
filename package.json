@@ -17,12 +17,17 @@
     "cf:db:import": "node scripts/import-d1-chunks.mjs d1_import freecreds-db-v2",
     "test:py": "pytest",
     "test:ts": "vitest run",
+    "lint:js": "eslint src/frontend scripts",
     "lint:py": "ruff check src tests scripts/check_migrations.py",
     "check:migrations": "python scripts/check_migrations.py",
-    "check": "npm run lint:py && npm run test:py && npm run cf:typecheck && npm run test:ts && npm run check:migrations"
+    "check": "npm run lint:py && npm run lint:js && npm run test:py && npm run cf:typecheck && npm run test:ts && npm run check:migrations"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260722.1",
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.7.0",
+    "globals": "^17.7.0",
+    "happy-dom": "^20.11.1",
     "typescript": "^6.0.3",
     "vitest": "^4.1.9",
     "wrangler": "^4.114.0"
