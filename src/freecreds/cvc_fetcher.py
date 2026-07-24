@@ -355,6 +355,8 @@ def write_offerings(
     records: Iterable[OfferingRecord],
     term: Term,
     source: str = "cvc",
+    *,
+    staging: bool = False,
 ) -> dict[str, int]:
     """Upsert records. `term` must already be in the terms table."""
     counts = _empty_write_counts()
@@ -390,20 +392,80 @@ def write_offerings(
         ).fetchone()
         course_id = course_row[0] if course_row else None
 
-        db.upsert_class_offering(
-            conn,
-            institution_id=institution_id,
-            course_id=course_id,
-            prefix=rec.prefix,
-            number=rec.number,
-            term_id=term_id,
-            modality=rec.modality,
-            source=source,
-            source_ref=rec.source_ref,
-            fetched_at=fetched_at,
-        )
+        if staging:
+            conn.execute(
+                """INSERT INTO cvc_offerings_staging
+                     (institution_id, course_id, prefix, number, term_id,
+                      modality, source, source_ref, fetched_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(institution_id, prefix, number, term_id, source_ref)
+                   DO UPDATE SET course_id=excluded.course_id,
+                                 modality=excluded.modality,
+                                 fetched_at=excluded.fetched_at""",
+                (
+                    institution_id,
+                    course_id,
+                    rec.prefix.strip().upper(),
+                    rec.number.strip().upper(),
+                    term_id,
+                    rec.modality,
+                    source,
+                    rec.source_ref,
+                    fetched_at,
+                ),
+            )
+        else:
+            db.upsert_class_offering(
+                conn,
+                institution_id=institution_id,
+                course_id=course_id,
+                prefix=rec.prefix,
+                number=rec.number,
+                term_id=term_id,
+                modality=rec.modality,
+                source=source,
+                source_ref=rec.source_ref,
+                fetched_at=fetched_at,
+            )
         counts["written"] += 1
     return counts
+
+
+def _prepare_offering_staging(conn: sqlite3.Connection) -> None:
+    conn.execute("DROP TABLE IF EXISTS temp.cvc_offerings_staging")
+    conn.execute(
+        """CREATE TEMP TABLE cvc_offerings_staging (
+             institution_id INTEGER NOT NULL,
+             course_id INTEGER,
+             prefix TEXT NOT NULL,
+             number TEXT NOT NULL,
+             term_id INTEGER NOT NULL,
+             modality TEXT NOT NULL,
+             source TEXT NOT NULL,
+             source_ref TEXT NOT NULL,
+             fetched_at TEXT NOT NULL,
+             UNIQUE(institution_id, prefix, number, term_id, source_ref)
+           )"""
+    )
+
+
+def _publish_staged_offerings(
+    conn: sqlite3.Connection,
+    *,
+    source: str,
+    term_ids: list[int],
+) -> None:
+    """Replace live rows only after the complete staged crawl succeeds."""
+    with conn:
+        db.clear_offerings(conn, source=source, term_ids=term_ids)
+        conn.execute(
+            """INSERT INTO class_offerings
+                 (institution_id, course_id, prefix, number, term_id,
+                  modality, source, source_ref, fetched_at)
+               SELECT institution_id, course_id, prefix, number, term_id,
+                      modality, source, source_ref, fetched_at
+               FROM cvc_offerings_staging"""
+        )
 
 
 def ensure_term(conn: sqlite3.Connection, term: Term) -> int:
@@ -464,20 +526,19 @@ def ingest_terms(
     term_ids = [ensure_term(conn, t) for t in terms]
     conn.commit()
 
-    db.clear_offerings(conn, source="cvc", term_ids=term_ids)
-    conn.commit()
-
     if fixture_path:
+        _prepare_offering_staging(conn)
         log.info("Loading from fixture %s (treated as online_async)", fixture_path)
         html = fixture_path.read_text(encoding="utf-8", errors="replace")
         totals = _empty_write_counts()
         for term in terms:
             records = parse_search_html(html, term_code=term.code, modality="online_async")
-            counts = write_offerings(conn, records, term)
+            counts = write_offerings(conn, records, term, staging=True)
             _add_write_counts(totals, counts)
             conn.commit()
             log.info("Term %s (fixture): parsed %d cards, wrote %d",
                      term.code, len(records), counts["written"])
+        _publish_staged_offerings(conn, source="cvc", term_ids=term_ids)
         log.info("Totals: %s", totals)
         conn.close()
         return
@@ -492,6 +553,7 @@ def ingest_terms(
         conn.close()
         return
 
+    _prepare_offering_staging(conn)
     totals = _empty_write_counts()
     # Estimate: 0.6s throttle × 2 modalities × N subjects × pages
     log.info("Estimated minimum runtime: %.1f min (pagination extends this)",
@@ -506,15 +568,16 @@ def ingest_terms(
                     for page in range(1, MAX_PAGES_PER_QUERY + 1):
                         html = client.search_html(term, subtype, subject, page=page)
                         if html is None:
-                            log.warning(
-                                "Abort at %s/%s subject=%s page=%d — partial data written.",
-                                term.code, subtype, subject, page,
+                            conn.close()
+                            raise RuntimeError(
+                                "CVC refresh incomplete at "
+                                f"{term.code}/{subtype} subject={subject} page={page}; "
+                                "existing offerings were preserved"
                             )
-                            break
                         if count_cards(html) == 0:
                             break
                         records = parse_search_html(html, term_code=term.code, modality=modality)
-                        counts = write_offerings(conn, records, term)
+                        counts = write_offerings(conn, records, term, staging=True)
                         _add_write_counts(totals, counts)
                         conn.commit()
                         term_total += counts["written"]
@@ -530,6 +593,13 @@ def ingest_terms(
                         )
                         if not has_next_page(html):
                             break
+                        if page == MAX_PAGES_PER_QUERY:
+                            conn.close()
+                            raise RuntimeError(
+                                "CVC refresh hit the pagination safety cap at "
+                                f"{term.code}/{subtype} subject={subject}; "
+                                "existing offerings were preserved"
+                            )
                     if cards_for_subject:
                         log.info(
                             "  %s / %s subj=%-8s [%d/%d] %d cards (%d pages)",
@@ -537,6 +607,7 @@ def ingest_terms(
                             cards_for_subject, pages_fetched,
                         )
             log.info("Term %s: %d offerings written", term.code, term_total)
+    _publish_staged_offerings(conn, source="cvc", term_ids=term_ids)
     log.info("Totals: %s", totals)
     conn.close()
 

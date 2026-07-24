@@ -140,6 +140,84 @@ def test_reverse_lookup_term_filter_uses_matching_course(client: TestClient):
     assert data["results"][0]["offering_status"] == "async_online"
 
 
+def test_reverse_lookup_requires_every_course_in_bundle_for_term(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    db_path = tmp_path / "assist.db"
+    _seed_reverse_lookup_db(db_path)
+    conn = db.connect(db_path)
+    receiving_id = conn.execute(
+        "SELECT id FROM courses WHERE institution_id = 1 AND prefix = 'MATH'"
+    ).fetchone()[0]
+    cc_id = conn.execute("SELECT id FROM institutions WHERE code = 'NEWCC'").fetchone()[0]
+    first_id = conn.execute(
+        "SELECT id FROM courses WHERE institution_id = ? AND prefix = 'MATH'",
+        (cc_id,),
+    ).fetchone()[0]
+    companion_id = db.upsert_course(
+        conn, cc_id, 3001, "MATH", "1B", "New Calculus II", 4.0, 4.0
+    )
+    conn.execute("DELETE FROM reverse_index WHERE academic_year_id = 76")
+    db.insert_reverse_index_rows(
+        conn,
+        [
+            (receiving_id, cc_id, first_id, False, [companion_id], 76, "AllDepartments", []),
+            (receiving_id, cc_id, companion_id, False, [first_id], 76, "AllDepartments", []),
+        ],
+    )
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(api, "DB_PATH", db_path)
+
+    with TestClient(api.app) as test_client:
+        response = test_client.get(
+            "/api/reverse?university=CSUFULL&prefix=MATH&number=170A&term=FA26"
+        )
+
+    assert response.status_code == 200
+    assert response.json()["results"] == []
+
+
+def test_async_any_term_ignores_historical_offerings(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    db_path = tmp_path / "assist.db"
+    _seed_reverse_lookup_db(db_path)
+    conn = db.connect(db_path)
+    uni_id = conn.execute("SELECT id FROM institutions WHERE code = 'CSUFULL'").fetchone()[0]
+    receiving_id = conn.execute(
+        "SELECT id FROM courses WHERE institution_id = ? AND prefix = 'MATH'",
+        (uni_id,),
+    ).fetchone()[0]
+    cc_id = db.upsert_institution(conn, 600, "PASTCC", "Past College", 2, 0)
+    sending_id = db.upsert_course(
+        conn, cc_id, 6000, "MATH", "1A", "Past Calculus", 4.0, 4.0
+    )
+    db.insert_articulation(conn, receiving_id, cc_id, uni_id, 76, None, "AllDepartments")
+    db.insert_reverse_index_rows(
+        conn,
+        [(receiving_id, cc_id, sending_id, True, [], 76, "AllDepartments", [])],
+    )
+    old_term_id = db.upsert_term(conn, "SP25", "Spring 2025", "Spring", 2025)
+    db.upsert_class_offering(
+        conn, cc_id, sending_id, "MATH", "1A", old_term_id, "online_async", "cvc",
+        "https://search.cvc.edu/courses/past", "2025-01-01T00:00:00+00:00",
+    )
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(api, "DB_PATH", db_path)
+
+    with TestClient(api.app) as test_client:
+        response = test_client.get(
+            "/api/reverse?university=CSUFULL&prefix=MATH&number=170A&async_only=true"
+        )
+
+    assert response.status_code == 200
+    assert [row["cc_code"] for row in response.json()["results"]] == ["NEWCC"]
+
+
 def test_reverse_lookup_ignores_malformed_companion_metadata(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

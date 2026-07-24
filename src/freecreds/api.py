@@ -176,15 +176,15 @@ def _offering_key(row: sqlite3.Row) -> tuple[int, str, str]:
 
 def _query_offerings(
     conn: sqlite3.Connection,
-    rows: list[sqlite3.Row],
+    offering_keys: list[tuple[int, str, str]],
     query_term_ids: list[int],
-) -> dict[tuple[int, str, str], str]:
+) -> dict[tuple[int, str, str], dict[int, str]]:
     """Fetch offering modality for all reverse rows without per-row queries."""
-    offerings_map: dict[tuple[int, str, str], str] = {}
-    if not query_term_ids or not rows:
+    offerings_map: dict[tuple[int, str, str], dict[int, str]] = {}
+    if not query_term_ids or not offering_keys:
         return offerings_map
 
-    offering_keys = sorted({_offering_key(r) for r in rows})
+    offering_keys = sorted(set(offering_keys))
     t_marks = ",".join(["?"] * len(query_term_ids))
     # Keep under SQLite's common 999-variable limit while still letting the
     # composite offerings index do point lookups.
@@ -197,7 +197,7 @@ def _query_offerings(
             params.extend([inst_id, prefix_key, number_key])
         off_rows = conn.execute(
             f"""SELECT institution_id, UPPER(prefix) AS prefix,
-                       UPPER(number) AS number, modality
+                       UPPER(number) AS number, term_id, modality
                 FROM class_offerings
                 WHERE term_id IN ({t_marks})
                   AND (institution_id, prefix, number) IN (VALUES {key_marks})""",
@@ -205,10 +205,32 @@ def _query_offerings(
         ).fetchall()
         for o in off_rows:
             key = (o["institution_id"], o["prefix"], o["number"])
-            offerings_map[key] = _preferred_modality(
-                offerings_map.get(key), o["modality"]
+            by_term = offerings_map.setdefault(key, {})
+            by_term[o["term_id"]] = _preferred_modality(
+                by_term.get(o["term_id"]), o["modality"]
             )
     return offerings_map
+
+
+def _matching_bundle_modality(
+    offerings: dict[tuple[int, str, str], dict[int, str]],
+    keys: list[tuple[int, str, str]],
+    term_ids: list[int],
+    async_only: bool,
+) -> str | None:
+    """Return a modality only when every course is available in one term."""
+    for term_id in term_ids:
+        modalities = [offerings.get(key, {}).get(term_id) for key in keys]
+        if any(modality is None for modality in modalities):
+            continue
+        if async_only and any(modality != "online_async" for modality in modalities):
+            continue
+        chosen: str | None = None
+        for modality in modalities:
+            if modality is not None:
+                chosen = _preferred_modality(chosen, modality)
+        return chosen
+    return None
 
 
 def _parse_id_list(value: str | None) -> list[int]:
@@ -322,11 +344,15 @@ def reverse_lookup(
         if term_id is not None:
             query_term_ids = [term_id]
         elif async_only:
+            upcoming_codes = [t.code for t in upcoming_terms(date.today(), count=4)]
+            code_marks = ",".join(["?"] * len(upcoming_codes))
             query_term_ids = [
-                r[0] for r in conn.execute("SELECT id FROM terms").fetchall()
+                r[0]
+                for r in conn.execute(
+                    f"SELECT id FROM terms WHERE code IN ({code_marks})",
+                    upcoming_codes,
+                ).fetchall()
             ]
-
-        offerings_map = _query_offerings(conn, rows, query_term_ids)
 
         results: list[dict[str, Any]] = []
         all_course_ids: set[int] = set()
@@ -349,9 +375,30 @@ def reverse_lookup(
             for cr in comp_rows:
                 course_map[cr["id"]] = _course_row_to_obj(cr)
 
+        offering_keys = [_offering_key(r) for r in rows]
+        for r, comps, _ in parsed_rows:
+            offering_keys.extend(
+                (r["cc_institution_id"], course_map[cid]["prefix"].upper(),
+                 course_map[cid]["number"].upper())
+                for cid in comps
+                if cid in course_map
+            )
+        offerings_map = _query_offerings(conn, offering_keys, query_term_ids)
+
         for r, comps, recv_comps in parsed_rows:
-            key = _offering_key(r)
-            modality = offerings_map.get(key) if query_term_ids else None
+            bundle_keys = [_offering_key(r)] + [
+                (r["cc_institution_id"], course_map[cid]["prefix"].upper(),
+                 course_map[cid]["number"].upper())
+                for cid in comps
+                if cid in course_map
+            ]
+            modality = (
+                _matching_bundle_modality(
+                    offerings_map, bundle_keys, query_term_ids, async_only
+                )
+                if query_term_ids and len(bundle_keys) == len(comps) + 1
+                else None
+            )
             # Per-row status only has meaning when the user picked a specific term.
             # In "Any term" mode we still use modality for filtering, but the UI
             # hides the offered column (nothing to display per-row).

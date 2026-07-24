@@ -8,7 +8,9 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from freecreds import db
+import pytest
+
+from freecreds import cvc_fetcher, db
 from freecreds.cvc_fetcher import (
     CVC_HOME_UNIVERSITY_ID,
     CVCClient,
@@ -262,3 +264,44 @@ def test_write_offerings_idempotent_upsert():
     write_offerings(conn, records, term)
     count = conn.execute("SELECT COUNT(*) FROM class_offerings").fetchone()[0]
     assert count == 1
+
+
+def test_failed_crawl_preserves_existing_offerings(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    db_path = tmp_path / "assist.db"
+    conn = db.connect(db_path)
+    db.init_db(conn)
+    cc_id = db.upsert_institution(conn, 200, "WHC", "Coalinga College", 2, 0)
+    db.upsert_course(conn, cc_id, 2000, "MATH", "45", "Math", 3.0, 3.0)
+    term_id = ensure_term(conn, parse_code("FA26"))
+    db.upsert_class_offering(
+        conn, cc_id, None, "MATH", "45", term_id, "online_async", "cvc",
+        "https://search.cvc.edu/courses/original", "2026-01-01T00:00:00+00:00",
+    )
+    conn.commit()
+    conn.close()
+
+    class FailingClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def available_session_names(self):
+            return {"Fall 2026"}
+
+        def search_html(self, *_args, **_kwargs):
+            return None
+
+    monkeypatch.setattr(cvc_fetcher, "CVCClient", FailingClient)
+
+    with pytest.raises(RuntimeError, match="existing offerings were preserved"):
+        cvc_fetcher.ingest_terms(["FA26"], db_path=db_path, subjects=["MATH"])
+
+    conn = db.connect(db_path)
+    refs = [row[0] for row in conn.execute("SELECT source_ref FROM class_offerings")]
+    conn.close()
+    assert refs == ["https://search.cvc.edu/courses/original"]
