@@ -1,12 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { chunks, placeholders } from "../../functions/_shared/d1";
 import {
+  cachedResponse,
+  json,
   parseBooleanParam,
   requireStringParam,
 } from "../../functions/_shared/http";
 
 describe("HTTP helpers", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   it("parses supported boolean values", () => {
     expect(parseBooleanParam(new URL("https://example.test/?flag=1"), "flag")).toBe(true);
     expect(parseBooleanParam(new URL("https://example.test/?flag=TRUE"), "flag")).toBe(true);
@@ -25,5 +29,28 @@ describe("HTTP helpers", () => {
   it("builds SQL placeholders and chunks arrays", () => {
     expect(placeholders(3)).toBe("?,?,?");
     expect(chunks([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
+  });
+
+  it("keeps browser caching short while retaining versioned edge responses", async () => {
+    const pending: Promise<unknown>[] = [];
+    const put = vi.fn(async () => undefined);
+    vi.stubGlobal("caches", {
+      default: {
+        match: async () => undefined,
+        put,
+      },
+    });
+
+    const response = await cachedResponse(
+      "test/versioned-key",
+      (promise) => pending.push(promise),
+      3600,
+      async () => json({ ok: true }),
+    );
+    await Promise.all(pending);
+
+    expect(response.headers.get("cache-control"))
+      .toBe("public, max-age=300, s-maxage=3600");
+    expect(put).toHaveBeenCalledOnce();
   });
 });

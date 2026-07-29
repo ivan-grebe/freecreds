@@ -1,3 +1,6 @@
+import { createCombo } from "./combobox.js";
+import { el } from "./dom.js";
+import { initThemeToggle } from "./theme.js";
 import { dedupeBundleRows, renderSourceLabel } from "./ui-logic.js";
 
 const uniInput = document.getElementById("uni-input");
@@ -13,19 +16,8 @@ const output = document.getElementById("output");
 const assistUpdated = document.getElementById("assist-updated");
 const cvcUpdated = document.getElementById("cvc-updated");
 let lastResultsData = null;
-
-function el(tag, attrs = {}, children = []) {
-  const e = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (k === "class") e.className = v;
-    else e.setAttribute(k, v);
-  }
-  for (const c of [].concat(children)) {
-    if (c == null) continue;
-    e.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
-  }
-  return e;
-}
+let courseRequestController = null;
+let searchRequestController = null;
 
 function showOutput(className, message) {
   const children = [];
@@ -36,12 +28,10 @@ function showOutput(className, message) {
   output.replaceChildren(el("div", { class: className }, children));
 }
 
-// --- University dropdown ---
-
 async function loadTerms() {
   try {
     const res = await fetch("/api/terms");
-    if (!res.ok) return;
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const { terms } = await res.json();
     termFilter.replaceChildren(...terms.map((t) => el("label", { class: "term-option" }, [
       el("input", { type: "checkbox", name: "term", value: t.code }),
@@ -88,157 +78,6 @@ function syncAsyncToggle() {
 }
 termFilter.addEventListener("change", syncAsyncToggle);
 
-// --- Generic searchable combobox factory ---
-// Used for both the university input and the course input. Caller supplies
-// the matcher, display text, per-item render content, and an optional
-// onSelect callback (for the university combo that chain-loads courses).
-
-function createCombo({ input, list, matches, renderItem, displayText, exactShortcuts, onSelect }) {
-  const state = { items: [], filtered: [], activeIndex: -1, selected: null };
-
-  function setOpen(v) {
-    list.classList.toggle("open", v);
-    input.setAttribute("aria-expanded", v ? "true" : "false");
-  }
-  function render() {
-    list.replaceChildren();
-    if (!state.filtered.length) {
-      list.appendChild(el("li", { class: "combo-empty" }, "No matches"));
-      return;
-    }
-    if (state.filtered.length > 5) {
-      list.appendChild(el("li", { class: "combo-count" },
-        `${state.filtered.length} matches: scroll for more`));
-    }
-    state.filtered.forEach((item, i) => {
-      const li = el("li", {
-        class: "combo-item" + (i === state.activeIndex ? " active" : ""),
-        role: "option",
-        "data-index": String(i),
-      });
-      const parts = renderItem(item);
-      for (const p of [].concat(parts)) {
-        if (p instanceof Node) li.appendChild(p);
-        else if (p != null) li.appendChild(document.createTextNode(String(p)));
-      }
-      li.addEventListener("mousedown", (e) => {
-        // mousedown (not click) so it fires before input blur hides the list
-        e.preventDefault();
-        select(i);
-      });
-      list.appendChild(li);
-    });
-    if (state.activeIndex >= 0) {
-      const node = list.querySelector(`[data-index="${state.activeIndex}"]`);
-      if (node) node.scrollIntoView({ block: "nearest" });
-    }
-  }
-  function updateFiltered() {
-    const q = input.value.trim().toLowerCase();
-    const tokens = q ? q.split(/\s+/) : [];
-    state.filtered = state.items.filter(it => matches(it, tokens));
-    if (!state.filtered.length) state.activeIndex = -1;
-    else if (state.activeIndex >= state.filtered.length) state.activeIndex = 0;
-    else if (state.activeIndex < 0) state.activeIndex = 0;
-    render();
-  }
-  function select(i) {
-    const item = state.filtered[i];
-    if (!item) return;
-    state.selected = item;
-    input.value = displayText(item);
-    setOpen(false);
-    if (onSelect) onSelect(item);
-  }
-  function openOnFocus() {
-    if (input.disabled) return;
-    updateFiltered();
-    setOpen(true);
-  }
-
-  input.addEventListener("input", () => {
-    state.selected = null;
-    updateFiltered();
-    setOpen(true);
-  });
-  input.addEventListener("focus", openOnFocus);
-  input.addEventListener("click", openOnFocus);
-  document.addEventListener("mousedown", (e) => {
-    if (!input.contains(e.target) && !list.contains(e.target)) setOpen(false);
-  });
-  input.addEventListener("keydown", (e) => {
-    if (!list.classList.contains("open")) {
-      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-        openOnFocus();
-        e.preventDefault();
-      }
-      return;
-    }
-    if (e.key === "ArrowDown") {
-      if (state.filtered.length) {
-        state.activeIndex = (state.activeIndex + 1) % state.filtered.length;
-        render();
-      }
-      e.preventDefault();
-    } else if (e.key === "ArrowUp") {
-      if (state.filtered.length) {
-        state.activeIndex = (state.activeIndex - 1 + state.filtered.length) % state.filtered.length;
-        render();
-      }
-      e.preventDefault();
-    } else if (e.key === "Enter") {
-      if (state.activeIndex >= 0) {
-        select(state.activeIndex);
-        e.preventDefault();
-      }
-    } else if (e.key === "Escape") {
-      setOpen(false);
-      e.preventDefault();
-    }
-  });
-
-  return {
-    setItems(items) {
-      state.items = items;
-      state.filtered = items.slice();
-      state.activeIndex = -1;
-      state.selected = null;
-      input.value = "";
-    },
-    getSelected() { return state.selected; },
-    setEnabled(enabled, placeholder) {
-      input.disabled = !enabled;
-      if (placeholder !== undefined) input.placeholder = placeholder;
-    },
-    reset() {
-      state.items = [];
-      state.filtered = [];
-      state.activeIndex = -1;
-      state.selected = null;
-      input.value = "";
-      setOpen(false);
-    },
-    // If the user typed an exact display value (or one of the shortcuts)
-    // and hit Enter without clicking a dropdown item, promote it to the
-    // current selection so the form handler can proceed.
-    tryPromoteTypedSelection() {
-      if (state.selected) return state.selected;
-      const typed = input.value.trim().toLowerCase();
-      if (!typed) return null;
-      const shortcuts = exactShortcuts || (() => []);
-      const hit = state.items.find(it => {
-        if (displayText(it).toLowerCase() === typed) return true;
-        return (shortcuts(it) || []).some(s => s.toLowerCase() === typed);
-      });
-      if (hit) {
-        state.selected = hit;
-        return hit;
-      }
-      return null;
-    },
-  };
-}
-
 const uniCombo = createCombo({
   input: uniInput,
   list: uniList,
@@ -280,7 +119,8 @@ async function loadUniversities() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     data = await res.json();
   } catch {
-    showOutput("error", "Failed to load universities. Has the ingester been run?");
+    uniCombo.setEnabled(false, "Universities unavailable");
+    showOutput("error", "Failed to load universities. Please try again later.");
     return;
   }
   const { universities } = data;
@@ -293,6 +133,8 @@ async function loadUniversities() {
 }
 
 async function loadCoursesForUniversity(code) {
+  courseRequestController?.abort();
+  courseRequestController = null;
   if (!code) {
     courseCombo.reset();
     courseCombo.setEnabled(false, "Pick a university first");
@@ -300,21 +142,28 @@ async function loadCoursesForUniversity(code) {
   }
   courseCombo.reset();
   courseCombo.setEnabled(false, "Loading courses…");
+  const controller = new AbortController();
+  courseRequestController = controller;
   let data;
   try {
-    const res = await fetch(`/api/courses?university=${encodeURIComponent(code)}`);
+    const res = await fetch(
+      `/api/courses?university=${encodeURIComponent(code)}`,
+      { signal: controller.signal },
+    );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     data = await res.json();
-  } catch {
+  } catch (error) {
+    if (error?.name === "AbortError") return;
+    if (courseRequestController === controller) courseRequestController = null;
     courseCombo.setEnabled(false, "Failed to load courses");
     return;
   }
+  if (courseRequestController !== controller) return;
+  courseRequestController = null;
   const { courses } = data;
   courseCombo.setItems(courses);
   courseCombo.setEnabled(true, `Search ${courses.length} courses (e.g. "math 150")`);
 }
-
-// --- Results rendering (unchanged) ---
 
 function renderCourse(c) {
   const hasMin = c.min_units != null;
@@ -329,21 +178,9 @@ function renderCourse(c) {
   return `${c.prefix} ${c.number} - ${c.title}${unitsText}`;
 }
 
-// Returns { text, title }. `text` is shown under the row, `title` is the
-// tooltip (full list of major names when truncated).
-//
-// AllDepartments is the university's default articulation. It applies
-// to any major that hasn't overridden it, so attaching major names on
-// top of it is redundant. We only call out major names when the path is
-// *only* major-specific (no dept. summary backing it).
-// Agreement-year caption shown under the community-college code.
-// Rendered in a warmer color when this row's year is older than the
-// newest year in the result set (subtle stale-data flag).
-function renderYearNote(row, maxYearId) {
+function renderYearNote(row) {
   if (!row.academic_year) return null;
-  const stale = row.academic_year_id && maxYearId && row.academic_year_id < maxYearId;
-  return el("div", { class: "source-note" + (stale ? " stale" : "") },
-           `Agreement Year: ${row.academic_year}`);
+  return el("div", { class: "source-note" }, `Agreement Year: ${row.academic_year}`);
 }
 
 // Source caption shown under the articulating course. Only surfaces when
@@ -438,9 +275,6 @@ function renderResults(data, { animateSummary = true } = {}) {
     }
     output.appendChild(el("div", { class: "meta" }, msg));
   } else {
-    const maxYearId = visibleResults.reduce(
-      (m, r) => Math.max(m, r.academic_year_id || 0), 0
-    );
     const table = el("table");
     const headerCells = [
       el("th", {}, "Community College"),
@@ -457,7 +291,7 @@ function renderResults(data, { animateSummary = true } = {}) {
         r.cc_name,
         el("div", { class: "meta" }, r.cc_code),
       ];
-      const yearNote = renderYearNote(r, maxYearId);
+      const yearNote = renderYearNote(r);
       if (yearNote) ccChildren.push(yearNote);
       const cc = el("td", { "data-label": "Community College" }, ccChildren);
 
@@ -548,16 +382,23 @@ async function runSearch() {
   if (asyncCheck.checked) params.set("async_only", "true");
   lastResultsData = null;
   showOutput("meta loading-state", "Searching...");
+  searchRequestController?.abort();
+  const controller = new AbortController();
+  searchRequestController = controller;
 
   let res;
   let data;
   try {
-    res = await fetch(`/api/reverse?${params.toString()}`);
+    res = await fetch(`/api/reverse?${params.toString()}`, { signal: controller.signal });
     data = await res.json();
-  } catch {
-    showOutput("error", "Search failed. Check that the API server is running.");
+  } catch (error) {
+    if (error?.name === "AbortError") return;
+    if (searchRequestController === controller) searchRequestController = null;
+    showOutput("error", "Search failed. Please try again.");
     return;
   }
+  if (searchRequestController !== controller) return;
+  searchRequestController = null;
   if (!res.ok) {
     const err = el("div", { class: "error" }, data.error || data.detail || "Error");
     output.replaceChildren();
@@ -587,43 +428,4 @@ if (combineBundlesCheck) {
 loadUniversities();
 loadTerms();
 loadDataStatus();
-
-// --- Theme toggle ---
-// Two-state toggle. Initial state follows the OS via prefers-color-scheme
-// (no data-theme set). First click flips and locks to the opposite of the
-// current effective theme; subsequent clicks swap between light/dark.
-(function () {
-  const btn = document.getElementById("theme-toggle");
-  if (!btn) return;
-  const root = document.documentElement;
-  const media = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
-
-  function effectiveTheme() {
-    const attr = root.getAttribute("data-theme");
-    if (attr === "light" || attr === "dark") return attr;
-    return media && media.matches ? "dark" : "light";
-  }
-  function refreshLabel() {
-    const theme = effectiveTheme();
-    root.setAttribute("data-effective-theme", theme);
-    const label = btn.querySelector(".theme-label");
-    if (label) label.textContent = theme === "dark" ? "Light mode" : "Dark mode";
-    btn.setAttribute("aria-label", theme === "dark" ? "Switch to light mode" : "Switch to dark mode");
-  }
-  btn.addEventListener("click", () => {
-    const next = effectiveTheme() === "dark" ? "light" : "dark";
-    root.setAttribute("data-theme", next);
-    try {
-      localStorage.setItem("theme", next);
-    } catch {
-      // Storage can be unavailable in privacy-restricted browsing contexts.
-    }
-    refreshLabel();
-  });
-  if (media && media.addEventListener) {
-    media.addEventListener("change", () => {
-      if (!root.hasAttribute("data-theme")) refreshLabel();
-    });
-  }
-  refreshLabel();
-})();
+initThemeToggle();

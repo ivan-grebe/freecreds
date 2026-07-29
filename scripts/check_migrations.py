@@ -13,7 +13,9 @@ def _schema_snapshot(connection: sqlite3.Connection) -> dict[str, dict[str, list
         row[0]
         for row in connection.execute(
             """SELECT name FROM sqlite_master
-               WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
+               WHERE type = 'table'
+                 AND name NOT LIKE 'sqlite_%'
+                 AND name != '_freecreds_migrations'
                ORDER BY name"""
         )
     ]
@@ -51,6 +53,7 @@ def main() -> None:
 
         runtime_db = sqlite3.connect(":memory:")
         try:
+            db.init_db(runtime_db)
             db.init_db(runtime_db)
             if _schema_snapshot(migration_db) != _schema_snapshot(runtime_db):
                 raise SystemExit("Runtime SQLite schema does not match D1 migrations")

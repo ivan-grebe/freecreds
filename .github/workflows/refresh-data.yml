@@ -69,6 +69,9 @@ jobs:
           esac
 
           JOB_ID="$PAYLOAD_JOB_ID"
+          if [[ -z "$JOB_ID" ]]; then
+            JOB_ID="${KIND}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          fi
           if [[ -n "$JOB_ID" && ! "$JOB_ID" =~ ^[A-Za-z0-9._:-]+$ ]]; then
             echo "Invalid job ID" >&2
             exit 1
@@ -94,7 +97,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y sqlite3
           python -m pip install --upgrade pip
-          python -m pip install -e .
+          python -m pip install -c requirements-dev.lock -e .
           npm ci
 
       - name: Verify Cloudflare D1 import access
@@ -111,6 +114,18 @@ jobs:
             --remote \
             --file d1_auth_check.sql \
             --yes
+
+      - name: Record ingest job
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          JOB_ID: ${{ steps.refresh.outputs.job_id }}
+          JOB_KIND: ${{ steps.refresh.outputs.kind }}
+        shell: bash
+        run: |
+          NOW="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          printf "INSERT OR IGNORE INTO ingest_jobs (id, kind, status, requested_by, started_at) VALUES ('%s', '%s', 'dispatched', 'github-actions', '%s');\n" "$JOB_ID" "$JOB_KIND" "$NOW" > job_started.sql
+          npx wrangler d1 execute "$D1_DATABASE_NAME" --remote --file job_started.sql --yes
 
       - name: Reset local SQLite workspace
         shell: bash

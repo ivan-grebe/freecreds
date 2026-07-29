@@ -20,7 +20,9 @@
     "lint:js": "eslint src/frontend scripts",
     "lint:py": "ruff check src tests scripts/check_migrations.py",
     "check:migrations": "python scripts/check_migrations.py",
-    "check": "npm run lint:py && npm run lint:js && npm run test:py && npm run cf:typecheck && npm run test:ts && npm run check:migrations"
+    "check:py": "npm run lint:py && npm run test:py && npm run check:migrations",
+    "check:web": "npm run lint:js && npm run cf:typecheck && npm run test:ts",
+    "check": "npm run check:py && npm run check:web"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260722.1",

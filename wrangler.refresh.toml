@@ -1,8 +1,6 @@
 name = "freecreds-refresh"
 main = "src/workers/refresh.ts"
 compatibility_date = "2026-04-22"
-migrations_dir = "migrations"
-
 # Cloudflare cron expressions are UTC.
 # - CVC: roughly twice monthly.
 # ASSIST refresh remains manual on the free-plan setup because a full

@@ -331,3 +331,111 @@ def test_failed_crawl_preserves_existing_offerings(
     refs = [row[0] for row in conn.execute("SELECT source_ref FROM class_offerings")]
     conn.close()
     assert refs == ["https://search.cvc.edu/courses/original"]
+
+
+def test_empty_crawl_preserves_existing_offerings(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    db_path = tmp_path / "assist.db"
+    conn = db.connect(db_path)
+    db.init_db(conn)
+    cc_id = db.upsert_institution(conn, 200, "WHC", "Coalinga College", 2, 0)
+    db.upsert_course(conn, cc_id, 2000, "MATH", "45", "Math", 3.0, 3.0)
+    term_id = ensure_term(conn, parse_code("FA26"))
+    db.upsert_class_offering(
+        conn, cc_id, None, "MATH", "45", term_id, "online_async", "cvc",
+        "https://search.cvc.edu/courses/original", "2026-01-01T00:00:00+00:00",
+    )
+    conn.commit()
+    conn.close()
+
+    class EmptyClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def available_session_names(self):
+            return {"Fall 2026"}
+
+        def search_html(self, *_args, **_kwargs):
+            return "<html><body><p>No recognizable cards</p></body></html>"
+
+    monkeypatch.setattr(cvc_fetcher, "CVCClient", EmptyClient)
+
+    with pytest.raises(RuntimeError, match="produced no offerings"):
+        cvc_fetcher.ingest_terms(["FA26"], db_path=db_path, subjects=["MATH"])
+
+    conn = db.connect(db_path)
+    refs = [row[0] for row in conn.execute("SELECT source_ref FROM class_offerings")]
+    conn.close()
+    assert refs == ["https://search.cvc.edu/courses/original"]
+
+
+def test_card_markup_drift_fails_before_publication():
+    conn = _seed_conn()
+    term = parse_code("FA26")
+    ensure_term(conn, term)
+    conn.commit()
+
+    class ChangedMarkupClient:
+        def search_html(self, *_args, **_kwargs):
+            return '<div class="course border-gray-400"><p>New markup</p></div>'
+
+    with pytest.raises(RuntimeError, match="none could be parsed"):
+        cvc_fetcher._crawl_subject(
+            ChangedMarkupClient(),
+            conn,
+            term,
+            "online_async",
+            "online_async",
+            "MATH",
+            cvc_fetcher._load_offering_lookups(conn),
+        )
+
+
+def test_implausibly_small_refresh_requires_explicit_override():
+    conn = _seed_conn()
+    term_id = ensure_term(conn, parse_code("FA26"))
+    institution_id = conn.execute(
+        "SELECT id FROM institutions WHERE code = 'WHC'"
+    ).fetchone()[0]
+    for index in range(cvc_fetcher.MIN_REFRESH_BASELINE):
+        db.upsert_class_offering(
+            conn,
+            institution_id,
+            None,
+            "MATH",
+            str(index),
+            term_id,
+            "online_async",
+            "cvc",
+            f"https://search.cvc.edu/courses/old-{index}",
+            "2026-01-01T00:00:00+00:00",
+        )
+    cvc_fetcher._prepare_offering_staging(conn)
+    conn.execute(
+        """INSERT INTO cvc_offerings_staging
+             (institution_id, course_id, prefix, number, term_id, modality,
+              source, source_ref, fetched_at)
+           VALUES (?, NULL, 'MATH', '1', ?, 'online_async', 'cvc',
+                   'https://search.cvc.edu/courses/new', '2026-02-01T00:00:00+00:00')""",
+        (institution_id, term_id),
+    )
+
+    with pytest.raises(RuntimeError, match="implausibly small"):
+        cvc_fetcher._validate_staged_offerings(
+            conn,
+            source="cvc",
+            term_ids=[term_id],
+            allow_small_refresh=False,
+        )
+
+    cvc_fetcher._validate_staged_offerings(
+        conn,
+        source="cvc",
+        term_ids=[term_id],
+        allow_small_refresh=True,
+    )

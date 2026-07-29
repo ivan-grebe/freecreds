@@ -43,7 +43,9 @@ export async function cachedResponse(
   }
 
   const headers = new Headers(response.headers);
-  headers.set("cache-control", `public, max-age=${ttlSeconds}`);
+  // Browsers revalidate promptly, while Cloudflare can retain the versioned
+  // response for longer. Ingestion timestamps are part of API cache keys.
+  headers.set("cache-control", `public, max-age=300, s-maxage=${ttlSeconds}`);
   headers.set("x-freecreds-cache", "MISS");
   const cacheable = new Response(response.body, {
     status: response.status,

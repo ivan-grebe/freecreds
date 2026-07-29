@@ -6,15 +6,17 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 dependencies = [
-  "httpx>=0.27",
-  "fastapi>=0.110",
-  "uvicorn>=0.27",
+  "httpx>=0.27,<1",
 ]
 
 [project.optional-dependencies]
 # Ruff is bounded on purpose: an unpinned upgrade widened the default rule set
 # and broke CI on unchanged code.
-dev = ["pytest>=8", "respx>=0.21", "ruff>=0.16,<0.17"]
+dev = [
+  "pytest>=8,<9",
+  "respx>=0.21,<1",
+  "ruff>=0.16,<0.17",
+]
 
 [tool.ruff]
 line-length = 100
@@ -26,8 +28,8 @@ ignore = [
   # Term windows are academic calendar dates, so the local date is intended.
   # Attaching a timezone here would shift term boundaries.
   "DTZ011",
-  # Bulk ingestion deliberately isolates per-record failures: roll back, log,
-  # and continue instead of aborting an entire import.
+  # Bulk ingestion deliberately isolates per-target failures: roll back the
+  # target, log it, and continue so the run can report every failed target.
   "BLE001",
   # `__enter__` already returns self; typing.Self needs 3.11 and this targets 3.10.
   "PYI034",

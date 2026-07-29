@@ -10,144 +10,12 @@ from collections.abc import Iterable
 from pathlib import Path
 
 DEFAULT_DB_PATH = Path("data/assist.db")
+MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
+LOCAL_MIGRATIONS_TABLE = "_freecreds_migrations"
 
 # ASSIST integer code → readable label.
 CATEGORY_MAP = {0: "CSU", 1: "UC", 2: "CCC", 5: "AICCU"}
 TERM_TYPE_MAP = {0: "Semester", 1: "Quarter", 2: "Trimester"}
-
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS institutions (
-  id INTEGER PRIMARY KEY,
-  assist_id INTEGER UNIQUE NOT NULL,
-  code TEXT NOT NULL,
-  name TEXT NOT NULL,
-  category TEXT NOT NULL CHECK(category IN ('CCC','CSU','UC','AICCU')),
-  term_type TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_inst_code ON institutions(code);
-CREATE INDEX IF NOT EXISTS idx_inst_code_nocase
-  ON institutions(code COLLATE NOCASE);
-CREATE INDEX IF NOT EXISTS idx_inst_category ON institutions(category);
-
-CREATE TABLE IF NOT EXISTS courses (
-  id INTEGER PRIMARY KEY,
-  institution_id INTEGER NOT NULL REFERENCES institutions(id),
-  course_identifier_parent_id INTEGER NOT NULL,
-  prefix TEXT NOT NULL,
-  number TEXT NOT NULL,
-  title TEXT NOT NULL,
-  min_units REAL,
-  max_units REAL,
-  is_terminated BOOLEAN NOT NULL DEFAULT 0,
-  UNIQUE(institution_id, course_identifier_parent_id)
-);
-CREATE INDEX IF NOT EXISTS idx_courses_lookup ON courses(institution_id, prefix, number);
-CREATE INDEX IF NOT EXISTS idx_courses_lookup_nocase
-  ON courses(institution_id, prefix COLLATE NOCASE, number COLLATE NOCASE);
-
-CREATE TABLE IF NOT EXISTS articulations (
-  id INTEGER PRIMARY KEY,
-  receiving_course_id INTEGER NOT NULL REFERENCES courses(id),
-  sending_cc_id INTEGER NOT NULL REFERENCES institutions(id),
-  university_id INTEGER NOT NULL REFERENCES institutions(id),
-  academic_year_id INTEGER NOT NULL,
-  source_context TEXT NOT NULL DEFAULT 'AllDepartments',
-  no_articulation_reason TEXT,
-  UNIQUE(receiving_course_id, sending_cc_id, academic_year_id, source_context)
-);
-CREATE INDEX IF NOT EXISTS idx_art_lookup ON articulations(
-  university_id, academic_year_id, receiving_course_id
-);
-CREATE INDEX IF NOT EXISTS idx_art_receiving_year_cc ON articulations(
-  receiving_course_id, academic_year_id, sending_cc_id
-);
-
-CREATE TABLE IF NOT EXISTS articulation_course_groups (
-  id INTEGER PRIMARY KEY,
-  articulation_id INTEGER NOT NULL REFERENCES articulations(id),
-  conjunction TEXT NOT NULL CHECK(conjunction IN ('And','Or','Single')),
-  position INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS articulation_group_members (
-  id INTEGER PRIMARY KEY,
-  group_id INTEGER NOT NULL REFERENCES articulation_course_groups(id),
-  sending_course_id INTEGER NOT NULL REFERENCES courses(id),
-  position INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS reverse_index (
-  id INTEGER PRIMARY KEY,
-  receiving_course_id INTEGER NOT NULL REFERENCES courses(id),
-  sending_cc_id INTEGER NOT NULL REFERENCES institutions(id),
-  sending_course_id INTEGER NOT NULL REFERENCES courses(id),
-  is_standalone_equivalent BOOLEAN NOT NULL,
-  companion_course_ids TEXT,
-  academic_year_id INTEGER NOT NULL,
-  source_context TEXT NOT NULL DEFAULT 'AllDepartments',
-  receiving_companion_course_ids TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_reverse ON reverse_index(
-  receiving_course_id, academic_year_id
-);
-CREATE INDEX IF NOT EXISTS idx_reverse_receiving_year_cc ON reverse_index(
-  receiving_course_id, academic_year_id, sending_cc_id
-);
-CREATE INDEX IF NOT EXISTS idx_reverse_sending ON reverse_index(
-  sending_cc_id, academic_year_id
-);
-
-CREATE TABLE IF NOT EXISTS cross_listings (
-  id INTEGER PRIMARY KEY,
-  primary_course_id INTEGER NOT NULL REFERENCES courses(id),
-  alias_course_id INTEGER NOT NULL REFERENCES courses(id),
-  UNIQUE(primary_course_id, alias_course_id)
-);
-
-CREATE TABLE IF NOT EXISTS terms (
-  id INTEGER PRIMARY KEY,
-  code TEXT NOT NULL UNIQUE,
-  label TEXT NOT NULL,
-  season TEXT NOT NULL,
-  year INTEGER NOT NULL,
-  start_date TEXT,
-  end_date TEXT
-);
-
-CREATE TABLE IF NOT EXISTS class_offerings (
-  id INTEGER PRIMARY KEY,
-  institution_id INTEGER NOT NULL REFERENCES institutions(id),
-  course_id INTEGER REFERENCES courses(id),
-  prefix TEXT NOT NULL,
-  number TEXT NOT NULL,
-  term_id INTEGER NOT NULL REFERENCES terms(id),
-  modality TEXT NOT NULL CHECK(modality IN ('online_async','online_sync','online_mixed')),
-  source TEXT NOT NULL,
-  source_ref TEXT,
-  fetched_at TEXT NOT NULL,
-  UNIQUE(institution_id, prefix, number, term_id, source_ref)
-);
-CREATE INDEX IF NOT EXISTS idx_offerings_lookup
-  ON class_offerings(institution_id, prefix, number, term_id);
-CREATE INDEX IF NOT EXISTS idx_offerings_course
-  ON class_offerings(course_id, term_id);
-CREATE INDEX IF NOT EXISTS idx_offerings_source_term
-  ON class_offerings(source, term_id);
-
-CREATE TABLE IF NOT EXISTS ingest_jobs (
-  id TEXT PRIMARY KEY,
-  kind TEXT NOT NULL CHECK(kind IN ('cvc','assist')),
-  status TEXT NOT NULL CHECK(status IN ('queued','dispatched','completed','failed')),
-  requested_by TEXT NOT NULL,
-  started_at TEXT NOT NULL,
-  finished_at TEXT,
-  error TEXT,
-  metadata TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_ingest_jobs_kind_started
-  ON ingest_jobs(kind, started_at);
-"""
-
 
 def connect(path: Path = DEFAULT_DB_PATH) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -158,19 +26,66 @@ def connect(path: Path = DEFAULT_DB_PATH) -> sqlite3.Connection:
     return conn
 
 
+def _apply_migration(conn: sqlite3.Connection, migration: Path) -> None:
+    migration_name = migration.name.replace("'", "''")
+    script = migration.read_text(encoding="utf-8")
+    try:
+        conn.executescript(
+            f"BEGIN;\n{script}\n"
+            f"INSERT INTO {LOCAL_MIGRATIONS_TABLE} (name) "
+            f"VALUES ('{migration_name}');\nCOMMIT;"
+        )
+    except sqlite3.Error:
+        conn.rollback()
+        raise
+
+
 def init_db(conn: sqlite3.Connection) -> None:
-    conn.executescript(SCHEMA)
-    _migrate(conn)
+    migration_files = sorted(MIGRATIONS_DIR.glob("*.sql"))
+    if not migration_files:
+        raise RuntimeError(f"No database migrations found in {MIGRATIONS_DIR}")
+    initialized = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'institutions'"
+    ).fetchone()
+    conn.execute(
+        f"CREATE TABLE IF NOT EXISTS {LOCAL_MIGRATIONS_TABLE} "
+        "(name TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+    )
+    applied = {
+        row[0] for row in conn.execute(f"SELECT name FROM {LOCAL_MIGRATIONS_TABLE}")
+    }
+
+    if initialized and not applied:
+        _migrate_legacy_database(conn)
+        conn.executemany(
+            f"INSERT INTO {LOCAL_MIGRATIONS_TABLE} (name) VALUES (?)",
+            [(migration.name,) for migration in migration_files],
+        )
+    else:
+        for migration in migration_files:
+            if migration.name in applied:
+                continue
+            _apply_migration(conn, migration)
     conn.commit()
 
 
-def _migrate(conn: sqlite3.Connection) -> None:
-    """Apply additive migrations to already-created DBs.
+def _migrate_legacy_database(conn: sqlite3.Connection) -> None:
+    """Bring databases created before SQL migrations up to the current shape.
 
     CREATE TABLE IF NOT EXISTS won't add new columns or change UNIQUE
     constraints on an existing table, so we probe and rewrite when needed.
     All migrations are idempotent.
     """
+    # Re-running the idempotent schema/index migrations creates any tables an
+    # especially old local database lacks. The column-removal migration is
+    # handled conditionally below because SQLite has no DROP COLUMN IF EXISTS.
+    for name in (
+        "0001_schema.sql",
+        "0002_reverse_index_receiving_companions.sql",
+        "0003_query_read_indexes.sql",
+    ):
+        conn.executescript((MIGRATIONS_DIR / name).read_text(encoding="utf-8"))
+
     institution_cols = {
         row[1] for row in conn.execute("PRAGMA table_info(institutions)")
     }

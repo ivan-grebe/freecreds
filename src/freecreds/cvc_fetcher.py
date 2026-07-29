@@ -41,9 +41,9 @@ ignores the subject filter and returns a broad all-subject result set.
 
 ## Graceful degradation
 
-If CVC is unreachable or its HTML shape changes, this module logs and
-exits without crashing. The reverse-search feature still works; offering
-status becomes "unknown" and users can check CVC directly as a fallback.
+If CVC is unreachable or its HTML shape changes, this module fails the
+refresh before publishing its staging table. Existing offering data remains
+available, and users can still check CVC directly as a fallback.
 
 ## Usage
 
@@ -81,6 +81,8 @@ USER_AGENT = "FreeCreds/0.1 (+https://github.com/ivan-grebe/freecreds)"
 THROTTLE_S = 0.6
 MAX_PAGES_PER_QUERY = 200  # safety cap; CVC typically returns ≤ ~40 pages
 CVC_HOME_UNIVERSITY_ID = "101"
+MIN_REFRESH_BASELINE = 100
+MIN_REFRESH_RATIO = 0.2
 MODALITY_SUBTYPES = (("online_async", "online_async"), ("online_sync", "online_sync"))
 WRITE_COUNT_KEYS = ("written", "skipped_unknown_college", "skipped_missing_institution")
 
@@ -476,6 +478,42 @@ def _publish_staged_offerings(
         )
 
 
+def _validate_staged_offerings(
+    conn: sqlite3.Connection,
+    *,
+    source: str,
+    term_ids: list[int],
+    allow_small_refresh: bool,
+) -> None:
+    """Reject empty or implausibly small crawls before replacing live data."""
+    term_marks = ",".join("?" for _ in term_ids)
+    staged_count = conn.execute(
+        "SELECT COUNT(*) FROM cvc_offerings_staging WHERE source = ?",
+        (source,),
+    ).fetchone()[0]
+    live_count = conn.execute(
+        f"SELECT COUNT(*) FROM class_offerings "
+        f"WHERE source = ? AND term_id IN ({term_marks})",
+        (source, *term_ids),
+    ).fetchone()[0]
+
+    if staged_count == 0:
+        raise RuntimeError(
+            "CVC refresh produced no offerings; existing offerings were preserved"
+        )
+    if (
+        not allow_small_refresh
+        and live_count >= MIN_REFRESH_BASELINE
+        and staged_count < live_count * MIN_REFRESH_RATIO
+    ):
+        raise RuntimeError(
+            "CVC refresh produced an implausibly small result "
+            f"({staged_count} rows versus {live_count} existing); "
+            "existing offerings were preserved. Re-run with "
+            "--allow-small-refresh only after verifying CVC manually."
+        )
+
+
 def ensure_term(conn: sqlite3.Connection, term: Term) -> int:
     return db.upsert_term(
         conn, code=term.code, label=term.label, season=term.season, year=term.year
@@ -563,9 +601,16 @@ def _crawl_subject(
                 f"{term.code}/{subtype} subject={subject} page={page}; "
                 "existing offerings were preserved"
             )
-        if count_cards(html) == 0:
+        card_count = count_cards(html)
+        if card_count == 0:
             break
         records = parse_search_html(html, term_code=term.code, modality=modality)
+        if not records:
+            raise RuntimeError(
+                "CVC page contained course cards but none could be parsed at "
+                f"{term.code}/{subtype} subject={subject} page={page}; "
+                "existing offerings were preserved"
+            )
         counts = write_offerings(conn, records, term, staging=True, lookups=lookups)
         _add_write_counts(totals, counts)
         cards += len(records)
@@ -596,6 +641,8 @@ def _crawl_live_offerings(
     term_ids: list[int],
     subjects: list[str],
     lookups: OfferingLookups,
+    *,
+    allow_small_refresh: bool = False,
 ) -> dict[str, int]:
     _prepare_offering_staging(conn)
     totals = _empty_write_counts()
@@ -625,6 +672,12 @@ def _crawl_live_offerings(
                             pages,
                         )
             log.info("Term %s: %d offerings written", term.code, term_total)
+    _validate_staged_offerings(
+        conn,
+        source="cvc",
+        term_ids=term_ids,
+        allow_small_refresh=allow_small_refresh,
+    )
     _publish_staged_offerings(conn, source="cvc", term_ids=term_ids)
     return totals
 
@@ -636,6 +689,7 @@ def ingest_terms(
     db_path: Path = db.DEFAULT_DB_PATH,
     fixture_path: Path | None = None,
     subjects: list[str] | None = None,
+    allow_small_refresh: bool = False,
 ) -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -658,7 +712,12 @@ def ingest_terms(
                 return
             log.info("Searching %d CCC subject prefixes", len(selected_subjects))
             totals = _crawl_live_offerings(
-                conn, terms, term_ids, selected_subjects, lookups
+                conn,
+                terms,
+                term_ids,
+                selected_subjects,
+                lookups,
+                allow_small_refresh=allow_small_refresh,
             )
         log.info("Totals: %s", totals)
     finally:
@@ -674,6 +733,11 @@ def main(argv: list[str] | None = None) -> int:
         "--subjects",
         default="",
         help="Comma-separated subject prefixes (default: all in DB)",
+    )
+    p.add_argument(
+        "--allow-small-refresh",
+        action="store_true",
+        help="Publish an unusually small CVC crawl after manually verifying it",
     )
     args = p.parse_args(argv)
 
@@ -694,6 +758,7 @@ def main(argv: list[str] | None = None) -> int:
         db_path=Path(args.db),
         fixture_path=Path(args.fixture) if args.fixture else None,
         subjects=subjects,
+        allow_small_refresh=args.allow_small_refresh,
     )
     return 0
 

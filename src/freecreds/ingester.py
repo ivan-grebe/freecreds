@@ -422,6 +422,48 @@ def ingest_university(
         conn.close()
 
 
+def _validate_target_scope(
+    conn: sqlite3.Connection,
+    *,
+    university_code: str,
+    university_id: int,
+    year_id: int,
+    active_ccs: list[dict[str, Any]],
+    limit_ccs: int | None,
+) -> None:
+    if not active_ccs:
+        raise RuntimeError(
+            f"ASSIST returned no active community colleges for {university_code}/{year_id}"
+        )
+    if limit_ccs is None:
+        return
+    existing_rows = conn.execute(
+        "SELECT COUNT(*) FROM articulations WHERE university_id = ? "
+        "AND academic_year_id = ?",
+        (university_id, year_id),
+    ).fetchone()[0]
+    if existing_rows:
+        raise RuntimeError(
+            "--limit is only safe with a fresh database; refusing to replace "
+            "an existing snapshot with partial test data"
+        )
+
+
+def _require_articulation_rows(
+    counts: dict[str, int],
+    *,
+    university_code: str,
+    cc_code: str,
+    schema: str,
+) -> None:
+    if counts["articulations"] == 0:
+        raise RuntimeError(
+            f"ASSIST agreement parsed no articulations at "
+            f"{university_code}/{cc_code}/{schema}; "
+            "previous articulation data was preserved"
+        )
+
+
 def _ingest_university_from_context(
     conn: sqlite3.Connection,
     client: AssistClient,
@@ -448,98 +490,117 @@ def _ingest_university_from_context(
     if limit_ccs is not None:
         active_ccs = active_ccs[:limit_ccs]
     log.info("CCCs to process: %d", len(active_ccs))
-
-    # Idempotency: clear prior data for this (university, year)
-    log.info("Clearing prior articulation data for %s/%d", university_code, year_id)
-    db.clear_articulation_data(conn, uni_db_id, year_id)
-    conn.commit()
-    log.info("Clear complete for %s/%d", university_code, year_id)
+    _validate_target_scope(
+        conn,
+        university_code=university_code,
+        university_id=uni_db_id,
+        year_id=year_id,
+        active_ccs=active_ccs,
+        limit_ccs=limit_ccs,
+    )
 
     totals = _empty_counts()
-    for i, entry in enumerate(active_ccs, start=1):
-        cc_started_at = time.monotonic()
-        cc = entry["receivingInstitution"]
-        cc_assist_id = cc["id"]
-        cc_db_id = id_map[cc_assist_id]
-        cc_code = (cc.get("code") or "?").strip()
+    summary_count = 0
+    # Keep the previous published snapshot until every agreement for this
+    # university has been fetched and written successfully. sqlite3 rolls the
+    # entire block back if any request, parse, or write fails.
+    with conn:
+        log.info("Replacing articulation data for %s/%d", university_code, year_id)
+        db.clear_articulation_data(conn, uni_db_id, year_id)
 
-        summaries = _find_all_summary_agreements(
-            client, uni_assist_id, cc_assist_id, year_id
-        )
-        if not summaries:
-            log.warning(
-                "[%d/%d] %s: no AllDepartments or AllMajors key",
-                i,
-                len(active_ccs),
-                cc_code,
-            )
-            continue
+        for i, entry in enumerate(active_ccs, start=1):
+            cc_started_at = time.monotonic()
+            cc = entry["receivingInstitution"]
+            cc_assist_id = cc["id"]
+            cc_db_id = id_map[cc_assist_id]
+            cc_code = (cc.get("code") or "?").strip()
 
-        per_cc = _empty_counts()
-        sources_used: list[str] = []
-        for summary_key, schema in summaries:
-            summary_started_at = time.monotonic()
-            log.info(
-                "[%d/%d] %s [%s]: fetching agreement key",
-                i,
-                len(active_ccs),
-                cc_code,
-                schema,
+            summaries = _find_all_summary_agreements(
+                client, uni_assist_id, cc_assist_id, year_id
             )
-            try:
-                payload = client.get_agreement(summary_key)
-            except Exception as e:
+            if not summaries:
                 log.warning(
-                    "[%d/%d] %s [%s]: fetch failed: %s",
+                    "[%d/%d] %s: no AllDepartments or AllMajors key",
+                    i,
+                    len(active_ccs),
+                    cc_code,
+                )
+                continue
+            summary_count += len(summaries)
+
+            per_cc = _empty_counts()
+            sources_used: list[str] = []
+            for summary_key, schema in summaries:
+                summary_started_at = time.monotonic()
+                log.info(
+                    "[%d/%d] %s [%s]: fetching agreement key",
                     i,
                     len(active_ccs),
                     cc_code,
                     schema,
-                    e,
                 )
-                continue
+                try:
+                    payload = client.get_agreement(summary_key)
+                except Exception as exc:
+                    raise RuntimeError(
+                        f"ASSIST refresh incomplete at {university_code}/{cc_code}/{schema}; "
+                        "previous articulation data was preserved"
+                    ) from exc
 
-            if schema == "AllMajors":
-                payload = _normalize_majors_payload(payload)
+                if schema == "AllMajors":
+                    payload = _normalize_majors_payload(payload)
 
-            counts = _ingest_one_agreement(
-                conn,
-                payload,
-                uni_db_id,
-                cc_db_id,
-                year_id,
-                source_context=schema,
-            )
-            _add_counts(per_cc, counts)
-            _add_counts(totals, counts)
-            sources_used.append(schema)
+                counts = _ingest_one_agreement(
+                    conn,
+                    payload,
+                    uni_db_id,
+                    cc_db_id,
+                    year_id,
+                    source_context=schema,
+                )
+                _require_articulation_rows(
+                    counts,
+                    university_code=university_code,
+                    cc_code=cc_code,
+                    schema=schema,
+                )
+                _add_counts(per_cc, counts)
+                _add_counts(totals, counts)
+                sources_used.append(schema)
+                log.info(
+                    "[%d/%d] %s [%s]: parsed/wrote in %s (%s)",
+                    i,
+                    len(active_ccs),
+                    cc_code,
+                    schema,
+                    _elapsed(summary_started_at),
+                    _format_counts(counts) or "no rows",
+                )
             log.info(
-                "[%d/%d] %s [%s]: parsed/wrote in %s (%s)",
+                (
+                    "[%d/%d] %s [%s]: processed in %s; "
+                    "%d articulations (%d with sending, %d no-art), %d reverse rows; "
+                    "target elapsed %s"
+                ),
                 i,
                 len(active_ccs),
                 cc_code,
-                schema,
-                _elapsed(summary_started_at),
-                _format_counts(counts) or "no rows",
+                "+".join(sources_used),
+                _elapsed(cc_started_at),
+                per_cc["articulations"],
+                per_cc["with_sending"],
+                per_cc["no_art"],
+                per_cc["reverse_rows"],
+                _elapsed(target_started_at),
             )
-        conn.commit()
-        log.info(
-            (
-                "[%d/%d] %s [%s]: committed in %s; "
-                "%d articulations (%d with sending, %d no-art), %d reverse rows; "
-                "target elapsed %s"
-            ),
-            i,
-            len(active_ccs),
-            cc_code,
-            "+".join(sources_used) or "none",
-            _elapsed(cc_started_at),
-            per_cc["articulations"],
-            per_cc["with_sending"],
-            per_cc["no_art"],
-            per_cc["reverse_rows"],
-            _elapsed(target_started_at),
-        )
+
+        if summary_count == 0 or totals["articulations"] == 0:
+            raise RuntimeError(
+                f"ASSIST returned no usable articulation data for "
+                f"{university_code}/{year_id}; previous data was preserved"
+            )
+
+    log.info("Published %s/%d atomically", university_code, year_id)
 
     log.info(
         "Done %s in %s. Totals: %s",

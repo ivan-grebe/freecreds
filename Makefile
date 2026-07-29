@@ -1,7 +1,7 @@
-.PHONY: install ingest serve test lint smoke
+.PHONY: install ingest serve test lint check smoke
 
 install:
-	python -m pip install --user -e ".[dev]"
+	python -m pip install --user -c requirements-dev.lock -e ".[dev]"
 
 smoke:
 	python -m freecreds.assist_api
@@ -10,10 +10,16 @@ ingest:
 	python -m freecreds.ingester --university CSUFULL
 
 serve:
-	python -m uvicorn freecreds.api:app --reload --port 8000
+	npm run cf:dev
 
 test:
-	python -m pytest tests/ -v
+	npm run test:py
+	npm run test:ts
 
 lint:
-	python -m ruff check src tests
+	npm run lint:py
+	npm run lint:js
+	npm run cf:typecheck
+
+check:
+	npm run check

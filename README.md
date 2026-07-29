@@ -20,7 +20,7 @@ FreeCreds helps California students find community-college courses that articula
 - Look up reverse articulation for CSU, UC, and participating private schools.
 - Handle standalone equivalents and multi-course AND bundles correctly.
 - Filter by current and upcoming terms for CVC-listed online offerings.
-- Serve fast Cloudflare Pages Functions backed by D1, plus a local FastAPI runtime.
+- Serve fast Cloudflare Pages Functions backed by D1.
 - Refresh data on a schedule through GitHub Actions and a Cloudflare Worker.
 
 ## Run locally
@@ -30,21 +30,14 @@ Requirements: Python 3.10+, Node.js 22+, npm, and SQLite.
 ```bash
 git clone https://github.com/ivan-grebe/freecreds.git
 cd freecreds
-python -m pip install -e ".[dev]"
+python -m pip install -c requirements-dev.lock -e ".[dev]"
 npm ci
 ```
 
-Run the Cloudflare Pages version:
+Run the site and API locally through Cloudflare Pages:
 
 ```bash
 npm run cf:dev
-```
-
-Or run the local FastAPI version:
-
-```bash
-python -m freecreds.ingester --university CSUFULL
-python -m uvicorn freecreds.api:app --reload --port 8000
 ```
 
 ## Testing
