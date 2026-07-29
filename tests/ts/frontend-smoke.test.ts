@@ -18,6 +18,14 @@ describe("frontend browser smoke test", () => {
           terms: [{ code: "FA26", label: "Fall 2026", season: "Fall", year: 2026 }],
         }), { status: 200 });
       }
+      if (url.endsWith("/api/status")) {
+        return new Response(JSON.stringify({
+          updated_at: {
+            assist: "2026-04-22T11:00:00Z",
+            cvc: "2026-04-23T11:00:00Z",
+          },
+        }), { status: 200 });
+      }
       if (url.endsWith("/universities.json")) {
         return new Response(JSON.stringify({
           universities: [
@@ -46,6 +54,10 @@ describe("frontend browser smoke test", () => {
     const searchButton = document.querySelector("#go")!;
     expect(termFilter.compareDocumentPosition(searchButton) & Node.DOCUMENT_POSITION_FOLLOWING)
       .toBeTruthy();
+    await vi.waitFor(() => {
+      expect(document.querySelector("#assist-updated")?.textContent).toContain("Apr 22, 2026");
+      expect(document.querySelector("#cvc-updated")?.textContent).toContain("Apr 23, 2026");
+    });
   });
 
   it("keeps dropdowns above the content that follows the search form", () => {

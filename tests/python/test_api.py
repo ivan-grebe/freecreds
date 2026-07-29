@@ -118,6 +118,41 @@ def _seed_reverse_lookup_db(db_path: Path) -> None:
         source_ref="https://search.cvc.edu/courses/2",
         fetched_at="2026-04-23T00:00:00+00:00",
     )
+    conn.executemany(
+        """INSERT INTO ingest_jobs
+           (id, kind, status, requested_by, started_at, finished_at)
+           VALUES (?, ?, ?, 'test', ?, ?)""",
+        [
+            (
+                "assist-old",
+                "assist",
+                "completed",
+                "2026-04-20T10:00:00Z",
+                "2026-04-20T11:00:00Z",
+            ),
+            (
+                "assist-new",
+                "assist",
+                "completed",
+                "2026-04-22T10:00:00Z",
+                "2026-04-22T11:00:00Z",
+            ),
+            (
+                "cvc-new",
+                "cvc",
+                "completed",
+                "2026-04-23T10:00:00Z",
+                "2026-04-23T11:00:00Z",
+            ),
+            (
+                "cvc-failed",
+                "cvc",
+                "failed",
+                "2026-04-24T10:00:00Z",
+                "2026-04-24T11:00:00Z",
+            ),
+        ],
+    )
     conn.commit()
     conn.close()
 
@@ -141,6 +176,18 @@ def test_reverse_lookup_uses_latest_academic_year(client: TestClient):
     assert [row["cc_code"] for row in data["results"]] == ["NEWCC"]
     assert data["results"][0]["academic_year_id"] == 76
     assert [row["cc_code"] for row in data["no_articulation"]] == ["NEWNO"]
+
+
+def test_status_returns_latest_successful_refreshes(client: TestClient):
+    response = client.get("/api/status")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "updated_at": {
+            "assist": "2026-04-22T11:00:00Z",
+            "cvc": "2026-04-23T11:00:00Z",
+        }
+    }
 
 
 def test_reverse_lookup_rejects_invalid_term(client: TestClient):

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <title>FreeCreds.net :: California Transfer Course Finder</title>
+  <title>FreeCreds.pages.dev :: California Transfer Course Finder</title>
   <script>
     (function () {
       try {
@@ -261,6 +261,7 @@
 
     .status-strip {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       gap: 7px;
       min-height: 31px;
@@ -271,14 +272,9 @@
       font: 11px Tahoma, Verdana, sans-serif;
     }
 
-    .status-led {
-      width: 9px;
-      height: 9px;
-      flex: none;
-      background: #18a337;
-      border: 1px solid #0a5f1e;
-      box-shadow: 0 0 0 1px #efffb1;
-    }
+    .status-icon { color: #38510e; font: bold 14px/1 monospace; }
+    .status-separator { color: #718d25; }
+    .update-time { font-variant-numeric: tabular-nums; white-space: nowrap; }
 
     main { padding: 9px 10px 18px; }
 
@@ -587,10 +583,13 @@
       .utility-bar { justify-content: center; }
       .brand-row { gap: 8px; }
       .brand-mark { display: none; }
-      h1 { font-size: 25px; }
+      h1 { font-size: 21px; letter-spacing: -1px; }
       .brand-subtitle { max-width: 25ch; }
       .tagline-bar { font-size: 10px; }
-      .status-strip { align-items: flex-start; font-size: 9px; }
+      .status-strip { display: grid; grid-template-columns: auto 1fr; align-items: start; font-size: 9px; }
+      .status-icon { grid-row: 1 / 4; }
+      .status-separator { display: none; }
+      .update-time { grid-column: 2; white-space: normal; }
       main { padding-inline: 6px; }
       .panel-title { align-items: flex-start; }
       .panel-title small { display: none; }
@@ -608,7 +607,7 @@
   <div class="site-shell">
     <header>
       <div class="utility-bar">
-        <span class="utility-name">FreeCreds.net &bull; California Edition</span>
+        <span class="utility-name">FreeCreds.pages.dev &bull; California Edition</span>
         <nav class="utility-links" aria-label="Site links">
           <a href="#search-form">Course Finder</a>
           <a href="#site-help">Help</a>
@@ -621,7 +620,7 @@
         <div class="brand-lockup">
           <div class="brand-mark" aria-hidden="true">FC</div>
           <div>
-            <h1>Free<span>Creds</span>.net</h1>
+            <h1>Free<span>Creds</span>.pages.dev</h1>
             <p class="brand-subtitle">California Transfer Course Finder</p>
           </div>
         </div>
@@ -635,10 +634,12 @@
       </div>
 
       <div class="tagline-bar">SAVE TIME &bull; FIND CLASSES &bull; GET CREDIT</div>
-      <div class="status-strip">
-        <span class="status-led" aria-hidden="true"></span>
-        <strong>DATABASE ONLINE:</strong>
-        <span>Articulation data from ASSIST + online offerings from CVC. Refreshed periodically.</span>
+      <div class="status-strip" aria-live="polite">
+        <span class="status-icon" aria-hidden="true">&#8635;</span>
+        <strong>LAST UPDATED:</strong>
+        <span id="assist-updated" class="update-time">ASSIST: loading...</span>
+        <span class="status-separator" aria-hidden="true">|</span>
+        <span id="cvc-updated" class="update-time">CVC: loading...</span>
       </div>
     </header>
 
@@ -753,7 +754,6 @@
       <div class="web-badges" aria-label="Site information">
         <span class="web-badge">Made in California</span>
         <span class="web-badge">No Registration</span>
-        <span class="web-badge">Best Viewed at 1024 x 768</span>
       </div>
       <p class="footer-note">
         Data is periodically refreshed from

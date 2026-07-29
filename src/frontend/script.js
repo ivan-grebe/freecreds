@@ -10,6 +10,8 @@ const termFilter = document.getElementById("term-filter");
 const asyncCheck = document.getElementById("async-only");
 const form = document.getElementById("search-form");
 const output = document.getElementById("output");
+const assistUpdated = document.getElementById("assist-updated");
+const cvcUpdated = document.getElementById("cvc-updated");
 let lastResultsData = null;
 
 function el(tag, attrs = {}, children = []) {
@@ -50,6 +52,33 @@ async function loadTerms() {
   }
 }
 
+function formatRefreshTime(value) {
+  if (!value) return "not recorded yet";
+  const timestamp = new Date(value);
+  if (Number.isNaN(timestamp.getTime())) return "unavailable";
+  return new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  }).format(timestamp);
+}
+
+async function loadDataStatus() {
+  try {
+    const res = await fetch("/api/status");
+    if (!res.ok) throw new Error("Status unavailable");
+    const { updated_at: updatedAt } = await res.json();
+    assistUpdated.textContent = `ASSIST: ${formatRefreshTime(updatedAt?.assist)}`;
+    cvcUpdated.textContent = `CVC: ${formatRefreshTime(updatedAt?.cvc)}`;
+  } catch {
+    assistUpdated.textContent = "ASSIST: unavailable";
+    cvcUpdated.textContent = "CVC: unavailable";
+  }
+}
+
 // Async-only is only meaningful when the user has opted into offering checks.
 // Start disabled; enable once a term is picked. Clearing the term unchecks + disables.
 function syncAsyncToggle() {
@@ -79,7 +108,7 @@ function createCombo({ input, list, matches, renderItem, displayText, exactShort
     }
     if (state.filtered.length > 5) {
       list.appendChild(el("li", { class: "combo-count" },
-        `${state.filtered.length} matches — scroll for more`));
+        `${state.filtered.length} matches: scroll for more`));
     }
     state.filtered.forEach((item, i) => {
       const li = el("li", {
@@ -239,7 +268,7 @@ const courseCombo = createCombo({
     el("span", { class: "code" }, `${c.prefix} ${c.number}`),
     el("span", { class: "title" }, c.title),
   ],
-  displayText: (c) => `${c.prefix} ${c.number} — ${c.title}`,
+  displayText: (c) => `${c.prefix} ${c.number}: ${c.title}`,
   exactShortcuts: (c) => [`${c.prefix} ${c.number}`, `${c.prefix}${c.number}`],
 });
 
@@ -256,7 +285,7 @@ async function loadUniversities() {
   }
   const { universities } = data;
   if (!universities.length) {
-    uniCombo.setEnabled(false, "(no data — run ingester)");
+    uniCombo.setEnabled(false, "(no data; run ingester)");
     return;
   }
   uniCombo.setItems(universities);
@@ -300,10 +329,10 @@ function renderCourse(c) {
   return `${c.prefix} ${c.number} - ${c.title}${unitsText}`;
 }
 
-// Returns { text, title } — `text` is shown under the row, `title` is the
+// Returns { text, title }. `text` is shown under the row, `title` is the
 // tooltip (full list of major names when truncated).
 //
-// AllDepartments is the university's default articulation — it applies
+// AllDepartments is the university's default articulation. It applies
 // to any major that hasn't overridden it, so attaching major names on
 // top of it is redundant. We only call out major names when the path is
 // *only* major-specific (no dept. summary backing it).
@@ -538,7 +567,7 @@ async function runSearch() {
         el("strong", {}, "Did you mean:"),
       ]);
       for (const s of data.did_you_mean) {
-        list.appendChild(el("div", {}, `${s.prefix} ${s.number} — ${s.title}`));
+        list.appendChild(el("div", {}, `${s.prefix} ${s.number}: ${s.title}`));
       }
       output.appendChild(list);
     }
@@ -557,6 +586,7 @@ if (combineBundlesCheck) {
 
 loadUniversities();
 loadTerms();
+loadDataStatus();
 
 // --- Theme toggle ---
 // Two-state toggle. Initial state follows the OS via prefers-color-scheme

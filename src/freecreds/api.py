@@ -68,6 +68,25 @@ def list_terms() -> dict[str, Any]:
     return {"terms": terms}
 
 
+@app.get("/api/status")
+def data_status() -> dict[str, Any]:
+    """Return the latest successful ASSIST and CVC refresh completion times."""
+    conn = _conn()
+    try:
+        rows = conn.execute(
+            """SELECT kind, MAX(finished_at) AS last_updated
+               FROM ingest_jobs
+               WHERE status = 'completed' AND finished_at IS NOT NULL
+               GROUP BY kind"""
+        ).fetchall()
+        updated_at: dict[str, str | None] = {"assist": None, "cvc": None}
+        for row in rows:
+            updated_at[row["kind"]] = row["last_updated"]
+        return {"updated_at": updated_at}
+    finally:
+        conn.close()
+
+
 @app.get("/api/courses")
 def list_courses(
     university: str = Query(..., description="Institution code, e.g. CSUFULL"),
