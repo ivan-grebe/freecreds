@@ -23,20 +23,6 @@ FreeCreds helps California students find community-college courses that articula
 - Serve fast Cloudflare Pages Functions backed by D1, plus a local FastAPI runtime.
 - Refresh data on a schedule through GitHub Actions and a Cloudflare Worker.
 
-## Architecture
-
-```text
-ASSIST and CVC sources
-        |
-        v
-Python ingestion (src/freecreds) --> local SQLite --> chunked D1 imports
-                                              |
-                                              v
-Cloudflare Pages Functions (functions/) --> src/frontend/
-```
-
-No production responses or database snapshots are committed, and test fixtures are synthetic. The refresh workflow exports only the base tables it needs from the existing D1 database before updating CVC offerings.
-
 ## Run locally
 
 Requirements: Python 3.10+, Node.js 22+, npm, and SQLite.
@@ -121,21 +107,6 @@ For production, configure Cloudflare rate limiting or WAF rules for `/api/*`, an
 | `GET /api/reverse?university=CSUFULL&prefix=MATH&number=170A` | Articulating community-college courses |
 
 The reverse endpoint also supports `term`, `async_only`, and `standalone_only`.
-
-## Repository layout
-
-```text
-src/
-  freecreds/  Python clients, parsers, ingestion, SQLite, and FastAPI
-  frontend/   Static application
-  workers/    Scheduled refresh dispatcher
-functions/    Cloudflare Pages API (must stay at the repo root)
-migrations/   Ordered D1 migrations
-scripts/      Export, import, and validation utilities
-tests/
-  python/     Python tests and synthetic fixtures
-  ts/         Production TypeScript tests
-```
 
 ## License
 
