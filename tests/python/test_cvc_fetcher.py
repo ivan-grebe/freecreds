@@ -18,7 +18,6 @@ from freecreds.cvc_fetcher import (
     count_cards,
     ensure_term,
     has_next_page,
-    parse_home_college_options,
     parse_search_html,
     parse_session_names,
     write_offerings,
@@ -150,17 +149,6 @@ def test_parse_synthetic_fixture_has_cards():
         assert r.college_name
         assert r.prefix.isalpha()
         assert r.number[0].isdigit()
-
-
-def test_parse_home_college_options():
-    if not FIXTURE.exists():
-        return
-    html = FIXTURE.read_text(encoding="utf-8", errors="replace")
-    opts = parse_home_college_options(html)
-    # Synthetic options exercise the same selector used by the live page.
-    assert len(opts) == 3
-    names = {name for _, name in opts}
-    assert "Santa Monica College" in names or "Coalinga College" in names
 
 
 def test_parse_session_names():

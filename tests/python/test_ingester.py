@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from freecreds import db, ingester
+from freecreds.parser import CourseRef
 
 
 def test_all_targets_returns_failure_when_any_target_failed(monkeypatch):
@@ -26,6 +27,38 @@ def test_all_targets_returns_success_when_every_target_succeeded(monkeypatch):
     )
 
     assert ingester.main(["--all"]) == 0
+
+
+def test_course_cache_skips_identical_writes_but_keeps_metadata_current():
+    conn = db.connect(Path(":memory:"))
+    db.init_db(conn)
+    institution_id = db.upsert_institution(
+        conn, 100, "CSUFULL", "Cal State Fullerton", 0, 0
+    )
+    cache: ingester.CourseCache = {}
+    counts = ingester._empty_counts()
+    course = CourseRef(1000, "MATH", "150", "Calculus", 4.0, 4.0)
+
+    first_id = ingester._ensure_course(conn, course, institution_id, cache, counts)
+    second_id = ingester._ensure_course(conn, course, institution_id, cache, counts)
+
+    assert second_id == first_id
+    assert counts["courses"] == 1
+
+    updated_course = CourseRef(
+        1000, "MATH", "150", "Calculus I", 4.0, 4.0, is_terminated=True
+    )
+    updated_id = ingester._ensure_course(
+        conn, updated_course, institution_id, cache, counts
+    )
+    row = conn.execute(
+        "SELECT title, is_terminated FROM courses WHERE id = ?", (updated_id,)
+    ).fetchone()
+    conn.close()
+
+    assert updated_id == first_id
+    assert counts["courses"] == 2
+    assert tuple(row) == ("Calculus I", 1)
 
 
 def test_failed_agreement_fetch_preserves_previous_university_snapshot():

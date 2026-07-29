@@ -47,6 +47,15 @@ def init_db(conn: sqlite3.Connection) -> None:
     initialized = conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'institutions'"
     ).fetchone()
+    migration_tracking = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (LOCAL_MIGRATIONS_TABLE,),
+    ).fetchone()
+    if initialized and not migration_tracking:
+        raise RuntimeError(
+            "Local database predates migration tracking. Delete it and regenerate "
+            "it with the ingestion command."
+        )
     conn.execute(
         f"CREATE TABLE IF NOT EXISTS {LOCAL_MIGRATIONS_TABLE} "
         "(name TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"
@@ -55,101 +64,11 @@ def init_db(conn: sqlite3.Connection) -> None:
         row[0] for row in conn.execute(f"SELECT name FROM {LOCAL_MIGRATIONS_TABLE}")
     }
 
-    if initialized and not applied:
-        _migrate_legacy_database(conn)
-        conn.executemany(
-            f"INSERT INTO {LOCAL_MIGRATIONS_TABLE} (name) VALUES (?)",
-            [(migration.name,) for migration in migration_files],
-        )
-    else:
-        for migration in migration_files:
-            if migration.name in applied:
-                continue
-            _apply_migration(conn, migration)
+    for migration in migration_files:
+        if migration.name in applied:
+            continue
+        _apply_migration(conn, migration)
     conn.commit()
-
-
-def _migrate_legacy_database(conn: sqlite3.Connection) -> None:
-    """Bring databases created before SQL migrations up to the current shape.
-
-    CREATE TABLE IF NOT EXISTS won't add new columns or change UNIQUE
-    constraints on an existing table, so we probe and rewrite when needed.
-    All migrations are idempotent.
-    """
-    # Re-running the idempotent schema/index migrations creates any tables an
-    # especially old local database lacks. The column-removal migration is
-    # handled conditionally below because SQLite has no DROP COLUMN IF EXISTS.
-    for name in (
-        "0001_schema.sql",
-        "0002_reverse_index_receiving_companions.sql",
-        "0003_query_read_indexes.sql",
-    ):
-        conn.executescript((MIGRATIONS_DIR / name).read_text(encoding="utf-8"))
-
-    institution_cols = {
-        row[1] for row in conn.execute("PRAGMA table_info(institutions)")
-    }
-    if "schedule_url" in institution_cols:
-        conn.execute("ALTER TABLE institutions DROP COLUMN schedule_url")
-
-    # articulations: add `source_context` + widen UNIQUE to include it.
-    # SQLite can't alter a UNIQUE constraint in place; we rebuild the table.
-    art_cols = {row[1] for row in conn.execute("PRAGMA table_info(articulations)")}
-    if "source_context" not in art_cols:
-        conn.execute("PRAGMA foreign_keys = OFF")
-        conn.executescript(
-            """
-            CREATE TABLE articulations_new (
-              id INTEGER PRIMARY KEY,
-              receiving_course_id INTEGER NOT NULL REFERENCES courses(id),
-              sending_cc_id INTEGER NOT NULL REFERENCES institutions(id),
-              university_id INTEGER NOT NULL REFERENCES institutions(id),
-              academic_year_id INTEGER NOT NULL,
-              source_context TEXT NOT NULL DEFAULT 'AllDepartments',
-              no_articulation_reason TEXT,
-              UNIQUE(receiving_course_id, sending_cc_id, academic_year_id, source_context)
-            );
-            INSERT INTO articulations_new
-              (id, receiving_course_id, sending_cc_id, university_id,
-               academic_year_id, no_articulation_reason)
-              SELECT id, receiving_course_id, sending_cc_id, university_id,
-                     academic_year_id, no_articulation_reason
-              FROM articulations;
-            DROP TABLE articulations;
-            ALTER TABLE articulations_new RENAME TO articulations;
-            CREATE INDEX IF NOT EXISTS idx_art_lookup ON articulations(
-              university_id, academic_year_id, receiving_course_id
-            );
-            """
-        )
-        conn.execute("PRAGMA foreign_keys = ON")
-
-    rev_cols = {row[1] for row in conn.execute("PRAGMA table_info(reverse_index)")}
-    if "source_context" not in rev_cols:
-        conn.execute(
-            "ALTER TABLE reverse_index "
-            "ADD COLUMN source_context TEXT NOT NULL DEFAULT 'AllDepartments'"
-        )
-    if "receiving_companion_course_ids" not in rev_cols:
-        conn.execute(
-            "ALTER TABLE reverse_index "
-            "ADD COLUMN receiving_companion_course_ids TEXT"
-        )
-
-    conn.executescript(
-        """
-        CREATE INDEX IF NOT EXISTS idx_inst_code_nocase
-          ON institutions(code COLLATE NOCASE);
-        CREATE INDEX IF NOT EXISTS idx_courses_lookup_nocase
-          ON courses(institution_id, prefix COLLATE NOCASE, number COLLATE NOCASE);
-        CREATE INDEX IF NOT EXISTS idx_art_receiving_year_cc
-          ON articulations(receiving_course_id, academic_year_id, sending_cc_id);
-        CREATE INDEX IF NOT EXISTS idx_reverse_receiving_year_cc
-          ON reverse_index(receiving_course_id, academic_year_id, sending_cc_id);
-        CREATE INDEX IF NOT EXISTS idx_offerings_source_term
-          ON class_offerings(source, term_id);
-        """
-    )
 
 
 def upsert_institution(

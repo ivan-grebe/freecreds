@@ -2,7 +2,7 @@ export interface Env {
   DB: D1Database;
 }
 
-export interface JsonError {
+interface JsonError {
   error: string;
 }
 
@@ -74,18 +74,6 @@ export function requireStringParam(
   const value = url.searchParams.get(name);
   if (value == null || !value.trim()) {
     return error(400, `Missing required query parameter: ${name}`);
-  }
-  return normalizeStringParam(name, value, options);
-}
-
-export function optionalStringParam(
-  url: URL,
-  name: string,
-  options: StringParamOptions,
-): string | Response | null {
-  const value = url.searchParams.get(name);
-  if (value == null || !value.trim()) {
-    return null;
   }
   return normalizeStringParam(name, value, options);
 }

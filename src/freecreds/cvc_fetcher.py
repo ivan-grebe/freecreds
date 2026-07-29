@@ -194,51 +194,6 @@ def has_next_page(html: str) -> bool:
     return bool(re.search(r'<a\b[^>]*\brel=["\']next["\']', html, re.IGNORECASE))
 
 
-class _HomeCollegeOptionParser(HTMLParser):
-    """Pulls the home-college `<select>` options out of a CVC search page.
-    Not used by the main ingest path, but exposed so we can regenerate
-    cvc_college_map when the CCC roster changes.
-    """
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self._in_home_select = False
-        self._pending_value: str | None = None
-        self._text: list[str] = []
-        self.options: list[tuple[int, str]] = []
-
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        d = dict(attrs)
-        if tag == "select" and d.get("id") == "filter_university_id":
-            self._in_home_select = True
-        elif tag == "option" and self._in_home_select:
-            self._pending_value = d.get("value")
-            self._text = []
-
-    def handle_endtag(self, tag: str) -> None:
-        if tag == "select":
-            self._in_home_select = False
-        elif tag == "option" and self._pending_value is not None:
-            text = "".join(self._text).strip()
-            try:
-                vid = int(self._pending_value)
-            except (TypeError, ValueError):
-                vid = None
-            if vid is not None and text:
-                self.options.append((vid, text))
-            self._pending_value = None
-            self._text = []
-
-    def handle_data(self, data: str) -> None:
-        if self._in_home_select and self._pending_value is not None:
-            self._text.append(data)
-
-
-def parse_home_college_options(html: str) -> list[tuple[int, str]]:
-    p = _HomeCollegeOptionParser()
-    p.feed(html)
-    return p.options
-
-
 class _SessionNameParser(HTMLParser):
     """Extract the terms CVC currently exposes in its search filters."""
 

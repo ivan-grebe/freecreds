@@ -14,6 +14,7 @@ import logging
 import sqlite3
 import sys
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -85,18 +86,20 @@ def _find_all_summary_agreements(
     articulation path and which view(s) produced it.
     """
     summaries: list[tuple[str, str]] = []
-
-    resp = client.list_agreement_keys(receiving_id, sending_id, year_id, types="Department")
-    reports = resp.get("allReports") or resp.get("reports") or []
-    dep = next((r for r in reports if r.get("type") == "AllDepartments"), None)
-    if dep:
-        summaries.append((dep["key"], "AllDepartments"))
-
-    resp = client.list_agreement_keys(receiving_id, sending_id, year_id, types="Major")
-    reports = resp.get("allReports") or resp.get("reports") or []
-    maj = next((r for r in reports if r.get("type") == "AllMajors"), None)
-    if maj:
-        summaries.append((maj["key"], "AllMajors"))
+    report_types = (
+        ("Department", "AllDepartments"),
+        ("Major", "AllMajors"),
+    )
+    for request_type, report_type in report_types:
+        response = client.list_agreement_keys(
+            receiving_id, sending_id, year_id, types=request_type
+        )
+        reports = response.get("allReports") or response.get("reports") or []
+        summary = next(
+            (report for report in reports if report.get("type") == report_type), None
+        )
+        if summary:
+            summaries.append((summary["key"], report_type))
 
     return summaries
 
@@ -212,7 +215,27 @@ def _upsert_all_institutions(
     return mapping
 
 
-CourseCache = dict[tuple[int, int], int]
+CourseFingerprint = tuple[str, str, str, float | None, float | None, bool]
+
+
+@dataclass(frozen=True)
+class CachedCourse:
+    id: int
+    fingerprint: CourseFingerprint
+
+
+CourseCache = dict[tuple[int, int], CachedCourse]
+
+
+def _course_fingerprint(course: CourseRef) -> CourseFingerprint:
+    return (
+        course.prefix,
+        course.number,
+        course.title,
+        course.min_units,
+        course.max_units,
+        course.is_terminated,
+    )
 
 
 def _ensure_course(
@@ -223,20 +246,25 @@ def _ensure_course(
     counts: dict[str, int],
 ) -> int:
     key = institution_id, course.course_identifier_parent_id
-    if key not in cache:
-        cache[key] = db.upsert_course(
-            conn,
-            institution_id=institution_id,
-            course_identifier_parent_id=course.course_identifier_parent_id,
-            prefix=course.prefix,
-            number=course.number,
-            title=course.title,
-            min_units=course.min_units,
-            max_units=course.max_units,
-            is_terminated=course.is_terminated,
-        )
-        counts["courses"] += 1
-    return cache[key]
+    fingerprint = _course_fingerprint(course)
+    cached = cache.get(key)
+    if cached is not None and cached.fingerprint == fingerprint:
+        return cached.id
+
+    course_id = db.upsert_course(
+        conn,
+        institution_id=institution_id,
+        course_identifier_parent_id=course.course_identifier_parent_id,
+        prefix=course.prefix,
+        number=course.number,
+        title=course.title,
+        min_units=course.min_units,
+        max_units=course.max_units,
+        is_terminated=course.is_terminated,
+    )
+    cache[key] = CachedCourse(course_id, fingerprint)
+    counts["courses"] += 1
+    return course_id
 
 
 def _persist_cross_listings(
@@ -332,14 +360,13 @@ def _ingest_one_agreement(
     university_db_id: int,
     cc_db_id: int,
     academic_year_id: int,
+    course_cache: CourseCache,
     source_context: str = "AllDepartments",
 ) -> dict[str, int]:
     """Persist a single summary agreement payload (either AllDepartments or
     an AllMajors-normalized-to-department shape). Returns counts.
     """
     counts = _empty_counts()
-
-    course_cache: CourseCache = {}
 
     for parsed in iter_parsed_articulations(agreement_payload):
         recv_db_id = _ensure_course(
@@ -500,6 +527,7 @@ def _ingest_university_from_context(
     )
 
     totals = _empty_counts()
+    course_cache: CourseCache = {}
     summary_count = 0
     # Keep the previous published snapshot until every agreement for this
     # university has been fetched and written successfully. sqlite3 rolls the
@@ -556,6 +584,7 @@ def _ingest_university_from_context(
                     uni_db_id,
                     cc_db_id,
                     year_id,
+                    course_cache,
                     source_context=schema,
                 )
                 _require_articulation_rows(
@@ -611,12 +640,12 @@ def _ingest_university_from_context(
     return totals
 
 
-DEFAULT_TARGET_CATEGORIES = ("CSU", "UC", "AICCU")
+DEFAULT_TARGET_CATEGORIES: tuple[str, ...] = ("CSU", "UC", "AICCU")
 
 
 def ingest_all_targets(
     db_path: Path = db.DEFAULT_DB_PATH,
-    categories: tuple = DEFAULT_TARGET_CATEGORIES,
+    categories: tuple[str, ...] = DEFAULT_TARGET_CATEGORIES,
 ) -> dict[str, list[str]]:
     """Run ingest_university for every target in the requested categories.
 

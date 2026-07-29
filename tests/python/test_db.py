@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import sqlite3
 
+import pytest
+
 from freecreds import db
 
 
@@ -22,7 +24,7 @@ def test_fresh_database_records_and_reuses_sql_migrations():
     assert "schedule_url" not in columns
 
 
-def test_legacy_database_is_baselined_without_losing_rows():
+def test_untracked_database_must_be_regenerated():
     conn = sqlite3.connect(":memory:")
     conn.executescript((db.MIGRATIONS_DIR / "0001_schema.sql").read_text(encoding="utf-8"))
     conn.execute(
@@ -32,10 +34,9 @@ def test_legacy_database_is_baselined_without_losing_rows():
     )
     conn.commit()
 
-    db.init_db(conn)
+    with pytest.raises(RuntimeError, match="Delete it and regenerate"):
+        db.init_db(conn)
 
     assert conn.execute("SELECT name FROM institutions WHERE code = 'TEST'").fetchone()[0] == (
         "Test University"
     )
-    columns = [row[1] for row in conn.execute("PRAGMA table_info(institutions)")]
-    assert "schedule_url" not in columns

@@ -14,7 +14,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-SEASONS = ("SP", "SU", "FA", "WI")
 SEASON_LABELS = {"SP": "Spring", "SU": "Summer", "FA": "Fall", "WI": "Winter"}
 
 
@@ -78,21 +77,6 @@ def upcoming_terms(today: date, count: int = 3) -> list[Term]:
         out.append(t)
         t = next_term(t)
     return out
-
-
-def academic_year_label(year_id: int) -> str:
-    """Map an ASSIST academic year ID to its human label.
-
-    Calibrated against observed data: id 74 = 2023-2024, 75 = 2024-2025,
-    76 = 2025-2026. So the start year is `1949 + year_id`.
-
-    This is a hardcoded offset — if ASSIST ever resets its year ID
-    numbering, this function needs recalibration. Cheaper than storing
-    the label per-row, since the payload already carries a label we
-    could scrape, but the offset has held since at least 2019.
-    """
-    start = 1949 + int(year_id)
-    return f"{start}-{start + 1}"
 
 
 def parse_code(code: str) -> Term:

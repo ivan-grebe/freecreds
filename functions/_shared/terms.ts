@@ -12,7 +12,7 @@ const SEASON_LABELS: Record<string, string> = {
   WI: "Winter",
 };
 
-export function makeTerm(seasonAbbr: string, year: number): Term {
+function makeTerm(seasonAbbr: string, year: number): Term {
   const season = SEASON_LABELS[seasonAbbr];
   if (!season) {
     throw new Error(`Invalid season: ${seasonAbbr}`);
