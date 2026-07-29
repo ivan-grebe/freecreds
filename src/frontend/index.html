@@ -544,6 +544,8 @@
     .footer a { color: #ffffff; }
     .web-badges { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; margin-bottom: 8px; }
     .web-badge { display: inline-block; padding: 2px 5px; color: #ffffff; background: #385b85; border: 1px outset #9fb5d0; font: bold 8px Tahoma, sans-serif; letter-spacing: .04em; text-transform: uppercase; }
+    .web-badge[href] { position: relative; text-decoration: none; }
+    .web-badge[href]::after { content: ""; position: absolute; top: 50%; left: 50%; width: max(100%, 44px); height: 40px; transform: translate(-50%, -50%); }
     .footer-note { margin: 0; }
 
     @media (max-width: 720px) {
@@ -753,7 +755,7 @@
     <footer class="footer">
       <div class="web-badges" aria-label="Site information">
         <span class="web-badge">Made in California</span>
-        <span class="web-badge">No Registration</span>
+        <a class="web-badge" href="https://github.com/ivan-grebe/freecreds" target="_blank" rel="noopener">GitHub</a>
       </div>
       <p class="footer-note">
         Data is periodically refreshed from

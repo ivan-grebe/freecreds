@@ -15,9 +15,6 @@ FreeCreds helps California students find community-college courses that articula
 > [!IMPORTANT]
 > FreeCreds is an independent planning aid, not an official advising service. Results can be delayed, incomplete, or interpreted differently by an institution. Confirm decisions with the relevant colleges and an academic counselor.
 
-> [!WARNING]
-> This repository is intentionally private. Review third-party data permissions before changing its visibility.
-
 ## Features
 
 - Look up reverse articulation for CSU, UC, and participating private schools.
