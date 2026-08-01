@@ -501,8 +501,13 @@
     .badge.bundle { color: #854200; background: #ffe0a6; }
     .badge.online-sync { color: var(--blue); background: var(--blue-light); }
     .badge.unknown { color: var(--muted); background: var(--disabled); }
+    .badge.offering-link { position: relative; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; transition: transform 120ms ease-out; }
+    .badge.offering-link::after { content: ""; position: absolute; inset: -5px -7px; }
+    .badge.offering-link:hover { filter: brightness(.92); }
+    .badge.offering-link:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+    .badge.offering-link:active { transform: scale(.96); }
     .offering-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
-    .offering-list li { display: flex; align-items: center; gap: 5px; }
+    .offering-list li { display: flex; min-height: 26px; align-items: center; gap: 5px; }
     .offering-term { color: var(--muted); font-size: 9px; }
     .companion-list, .receiving-companion-list { margin: 4px 0 0; padding-left: 16px; color: var(--muted); }
     .receiving-companion-list { color: var(--blue); }

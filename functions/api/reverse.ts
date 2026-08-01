@@ -31,6 +31,11 @@ const MODALITY_RANK: Record<string, number> = {
 };
 const REVERSE_CACHE_SECONDS = 60 * 60 * 12;
 
+interface OfferingIndexes {
+  modalities: Map<string, Map<number, string>>;
+  sourceRefs: Map<string, Map<number, string>>;
+}
+
 const UNIVERSITY_PARAM = {
   maxLength: 16,
   pattern: /^[A-Z0-9]+$/,
@@ -303,10 +308,11 @@ async function queryOfferings(
   env: Env,
   termIds: number[],
   lookupKeys: Array<{ institutionId: number; prefix: string; number: string }>,
-): Promise<Map<string, Map<number, string>>> {
-  const offerings = new Map<string, Map<number, string>>();
+): Promise<OfferingIndexes> {
+  const modalities = new Map<string, Map<number, string>>();
+  const sourceRefs = new Map<string, Map<number, string>>();
   if (!termIds.length || !lookupKeys.length) {
-    return offerings;
+    return { modalities, sourceRefs };
   }
 
   const seen = new Map<string, { institutionId: number; prefix: string; number: string }>();
@@ -331,7 +337,7 @@ async function queryOfferings(
     const offRows = await allRows<OfferingRow & { term_id: number }>(
       env.DB.prepare(`
         SELECT institution_id, UPPER(prefix) AS prefix,
-               UPPER(number) AS number, term_id, modality
+               UPPER(number) AS number, term_id, modality, source_ref
         FROM class_offerings
         WHERE term_id IN (${termMarks})
           AND (institution_id, prefix, number) IN (VALUES ${keyMarks})
@@ -339,19 +345,32 @@ async function queryOfferings(
     );
     for (const offering of offRows) {
       const key = offeringKey(offering.institution_id, offering.prefix, offering.number);
-      let byTerm = offerings.get(key);
+      let byTerm = modalities.get(key);
       if (!byTerm) {
         byTerm = new Map<number, string>();
-        offerings.set(key, byTerm);
+        modalities.set(key, byTerm);
       }
-      byTerm.set(
-        offering.term_id,
-        preferredModality(byTerm.get(offering.term_id), offering.modality),
-      );
+      const existingModality = byTerm.get(offering.term_id);
+      const preferred = preferredModality(existingModality, offering.modality);
+      byTerm.set(offering.term_id, preferred);
+
+      if (!offering.source_ref) continue;
+      let refsByTerm = sourceRefs.get(key);
+      if (!refsByTerm) {
+        refsByTerm = new Map<number, string>();
+        sourceRefs.set(key, refsByTerm);
+      }
+      const existingRef = refsByTerm.get(offering.term_id);
+      if (
+        preferred === offering.modality
+        && (preferred !== existingModality || !existingRef || offering.source_ref < existingRef)
+      ) {
+        refsByTerm.set(offering.term_id, offering.source_ref);
+      }
     }
   }
 
-  return offerings;
+  return { modalities, sourceRefs };
 }
 
 export function matchingBundleModality(
@@ -461,7 +480,7 @@ function reverseCacheKey(query: ReverseQuery): string {
     async: query.asyncOnly ? "1" : "0",
   });
   for (const termCode of [...query.termCodes].sort()) params.append("term", termCode);
-  return `reverse?${params.toString()}`;
+  return `reverse-v2?${params.toString()}`;
 }
 
 export async function buildReverseResponse(env: Env, query: ReverseQuery): Promise<Response> {
@@ -517,7 +536,11 @@ export async function buildReverseResponse(env: Env, query: ReverseQuery): Promi
       }
     }
   }
-  const offerings = await queryOfferings(env, offeringTermIds, lookupKeys);
+  const { modalities: offerings, sourceRefs } = await queryOfferings(
+    env,
+    offeringTermIds,
+    lookupKeys,
+  );
 
   const results = [];
   for (const { row, companionIds, receivingCompanionIds } of parsedRows) {
@@ -532,7 +555,12 @@ export async function buildReverseResponse(env: Env, query: ReverseQuery): Promi
       ? terms.flatMap((term) => {
         if (term.id == null) return [];
         const modality = matchingBundleModality(offerings, bundleKeys, [term.id], query.asyncOnly);
-        return modality ? [{ code: term.code, label: term.label, status: offeringStatus(modality) }] : [];
+        return modality ? [{
+          code: term.code,
+          label: term.label,
+          status: offeringStatus(modality),
+          source_ref: sourceRefs.get(bundleKeys[0])?.get(term.id) ?? null,
+        }] : [];
       })
       : [];
     const modality = query.termCodes.length

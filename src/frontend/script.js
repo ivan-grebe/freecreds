@@ -1,7 +1,7 @@
 import { createCombo } from "./combobox.js";
 import { el } from "./dom.js";
 import { initThemeToggle } from "./theme.js";
-import { dedupeBundleRows, renderSourceLabel } from "./ui-logic.js";
+import { cvcSourceHref, dedupeBundleRows, renderSourceLabel } from "./ui-logic.js";
 
 const uniInput = document.getElementById("uni-input");
 const uniList = document.getElementById("uni-list");
@@ -194,10 +194,24 @@ function renderSourceNote(sources) {
   return note;
 }
 
-function renderOfferingBadge(status) {
-  if (status === "async_online") return el("span", { class: "badge async-online" }, "async online");
-  if (status === "online_sync") return el("span", { class: "badge online-sync" }, "online sync");
-  return el("span", { class: "badge unknown" }, "unknown");
+function renderOfferingBadge(status, sourceRef = null, termLabel = "") {
+  const badge = status === "async_online"
+    ? { className: "async-online", label: "async online" }
+    : status === "online_sync"
+      ? { className: "online-sync", label: "online sync" }
+      : { className: "unknown", label: "unknown" };
+  const href = cvcSourceHref(sourceRef);
+  if (!href) return el("span", { class: `badge ${badge.className}` }, badge.label);
+
+  const context = termLabel ? ` for ${termLabel}` : "";
+  return el("a", {
+    class: `badge offering-link ${badge.className}`,
+    href,
+    target: "_blank",
+    rel: "noopener",
+    title: `View this class on CVC${context}`,
+    "aria-label": `${badge.label}${context}: view class on CVC (opens in a new tab)`,
+  }, `${badge.label} \u2197`);
 }
 
 function formatTermScope(terms) {
@@ -212,7 +226,7 @@ function renderOfferingTerms(terms, fallbackStatus) {
   if (!terms || terms.length === 0) return renderOfferingBadge(fallbackStatus);
   return el("ul", { class: "offering-list" }, terms.map((term) => el("li", {}, [
     el("span", { class: "offering-term" }, term.label),
-    renderOfferingBadge(term.status),
+    renderOfferingBadge(term.status, term.source_ref, term.label),
   ])));
 }
 

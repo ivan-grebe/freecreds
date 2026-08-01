@@ -15,6 +15,18 @@ export function renderSourceLabel(sources) {
   return { text: "", title: "" };
 }
 
+export function cvcSourceHref(sourceRef) {
+  if (typeof sourceRef !== "string" || !sourceRef) return null;
+  try {
+    const url = new URL(sourceRef);
+    return url.protocol === "https:" && url.hostname === "search.cvc.edu"
+      ? url.href
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 function offeringRank(status) {
   if (status === "async_online") return 3;
   if (status === "online_sync") return 2;

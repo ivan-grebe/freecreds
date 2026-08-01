@@ -128,6 +128,72 @@ describe("production D1 API implementations", () => {
     }]);
   });
 
+  it("includes the matching CVC listing URL for each offered term", async () => {
+    const db = fakeD1((sql) => {
+      if (sql.includes("FROM institutions") && !sql.includes("JOIN institutions")) {
+        return [{ id: 1, code: "CSUFULL", name: "Cal State Fullerton" }];
+      }
+      if (sql.includes("MAX(academic_year_id)")) return [{ year_id: 76 }];
+      if (sql.includes("FROM courses c") && sql.includes("c.number = ?")) {
+        return [{
+          id: 10,
+          prefix: "MATH",
+          number: "170A",
+          title: "Calculus",
+          min_units: 4,
+          max_units: 4,
+        }];
+      }
+      if (sql.includes("SELECT id, code, label FROM terms")) {
+        return [{ id: 101, code: "FA26", label: "Fall 2026" }];
+      }
+      if (sql.includes("cc_course_id")) {
+        return [{
+          cc_code: "TESTCC",
+          cc_name: "Test College",
+          cc_course_id: 20,
+          cc_prefix: "MATH",
+          cc_number: "1A",
+          cc_title: "Calculus I",
+          min_units: 4,
+          max_units: 4,
+          is_standalone_equivalent: 1,
+          companion_course_ids: "[]",
+          receiving_companion_course_ids: null,
+          cc_institution_id: 2,
+          sources_csv: "AllDepartments",
+          academic_year_id: 76,
+        }];
+      }
+      if (sql.includes("FROM class_offerings")) {
+        expect(sql).toContain("source_ref");
+        return [{
+          institution_id: 2,
+          prefix: "MATH",
+          number: "1A",
+          term_id: 101,
+          modality: "online_async",
+          source_ref: "https://search.cvc.edu/courses/1842959",
+        }];
+      }
+      if (sql.includes("no_articulation_reason")) return [];
+      throw new Error(`Unexpected SQL: ${sql}`);
+    });
+
+    const response = await buildReverseResponse({ DB: db }, {
+      ...query,
+      termCodes: ["FA26"],
+    });
+    const payload = await response.json();
+
+    expect(payload.results[0].offering_terms).toEqual([{
+      code: "FA26",
+      label: "Fall 2026",
+      status: "async_online",
+      source_ref: "https://search.cvc.edu/courses/1842959",
+    }]);
+  });
+
   it("rejects malformed and excessive term filters", async () => {
     const invalid = parseQuery(new Request(
       "https://freecreds.pages.dev/api/reverse"

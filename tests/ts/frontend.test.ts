@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { dedupeBundleRows, renderSourceLabel } from "../../src/frontend/ui-logic.js";
+import {
+  cvcSourceHref,
+  dedupeBundleRows,
+  renderSourceLabel,
+} from "../../src/frontend/ui-logic.js";
 
 describe("frontend result logic", () => {
   it("combines duplicate representations of the same AND bundle", () => {
@@ -38,5 +42,13 @@ describe("frontend result logic", () => {
       text: "Major-specific: Biology, Chemistry",
       title: "Biology\nChemistry",
     });
+  });
+
+  it("accepts only trusted CVC source links", () => {
+    expect(cvcSourceHref("https://search.cvc.edu/courses/1842959"))
+      .toBe("https://search.cvc.edu/courses/1842959");
+    expect(cvcSourceHref("http://search.cvc.edu/courses/1842959")).toBeNull();
+    expect(cvcSourceHref("https://example.com/courses/1842959")).toBeNull();
+    expect(cvcSourceHref("not a URL")).toBeNull();
   });
 });

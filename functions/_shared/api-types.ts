@@ -36,6 +36,7 @@ export interface OfferingRow extends Record<string, unknown> {
   prefix: string;
   number: string;
   modality: string;
+  source_ref: string | null;
 }
 
 export interface NoArticulationRow extends Record<string, unknown> {
