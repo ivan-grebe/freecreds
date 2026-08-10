@@ -15,6 +15,7 @@ from freecreds.cvc_fetcher import (
     CVC_HOME_UNIVERSITY_ID,
     CVCClient,
     OfferingRecord,
+    advertised_last_page,
     count_cards,
     ensure_term,
     has_next_page,
@@ -96,6 +97,12 @@ def test_count_cards_matches_parse():
 def test_has_next_page_detects_enabled_pagination_link():
     assert has_next_page('<a href="/search?page=2" rel="next">Next</a>')
     assert not has_next_page('<span class="page next disabled">Next</span>')
+
+
+def test_advertised_last_page_reads_the_final_pager_link():
+    html = '<a href="/search?page=2" rel="next">2</a> <a href="/search?page=493">493</a>'
+    assert advertised_last_page(html) == 493
+    assert advertised_last_page("<html></html>") is None
 
 
 def test_search_html_sends_home_context_and_normalized_subject():
