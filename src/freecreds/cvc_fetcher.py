@@ -79,7 +79,7 @@ log = logging.getLogger(__name__)
 CVC_BASE_URL = "https://search.cvc.edu"
 USER_AGENT = "FreeCreds/0.1 (+https://github.com/ivan-grebe/freecreds)"
 THROTTLE_S = 0.6
-MAX_PAGES_PER_QUERY = 200  # safety cap; CVC typically returns ≤ ~40 pages
+MAX_PAGES_PER_QUERY = 1_000  # emergency ceiling if CVC omits its advertised final page
 CVC_HOME_UNIVERSITY_ID = "101"
 MIN_REFRESH_BASELINE = 100
 MIN_REFRESH_RATIO = 0.2
@@ -192,6 +192,12 @@ def count_cards(html: str) -> int:
 def has_next_page(html: str) -> bool:
     """Return whether CVC rendered an enabled pagination next link."""
     return bool(re.search(r'<a\b[^>]*\brel=["\']next["\']', html, re.IGNORECASE))
+
+
+def advertised_last_page(html: str) -> int | None:
+    """Return CVC's last advertised result page, when its pager exposes one."""
+    page_numbers = [int(value) for value in re.findall(r"[?&]page=(\d+)", html)]
+    return max(page_numbers, default=None)
 
 
 class _SessionNameParser(HTMLParser):
@@ -548,6 +554,7 @@ def _crawl_subject(
     totals = _empty_write_counts()
     cards = 0
     pages = 0
+    last_page: int | None = None
     for page in range(1, MAX_PAGES_PER_QUERY + 1):
         html = client.search_html(term, subtype, subject, page=page)
         if html is None:
@@ -559,6 +566,7 @@ def _crawl_subject(
         card_count = count_cards(html)
         if card_count == 0:
             break
+        last_page = max(last_page or 0, advertised_last_page(html) or 0) or None
         records = parse_search_html(html, term_code=term.code, modality=modality)
         if not records:
             raise RuntimeError(
@@ -579,6 +587,8 @@ def _crawl_subject(
             len(records),
             counts["written"],
         )
+        if last_page is not None and page >= last_page:
+            break
         if not has_next_page(html):
             break
         if page == MAX_PAGES_PER_QUERY:
