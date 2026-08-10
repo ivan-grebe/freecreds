@@ -8,6 +8,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+import httpx
 import pytest
 
 from freecreds import cvc_fetcher, db
@@ -132,6 +133,33 @@ def test_search_html_sends_home_context_and_normalized_subject():
     assert ("filter[university_id]", CVC_HOME_UNIVERSITY_ID) in fake.params
     assert ("filter[subject]", "math") in fake.params
     assert ("page", "3") in fake.params
+
+
+def test_search_html_retries_transient_failures(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(cvc_fetcher.time, "sleep", lambda _seconds: None)
+
+    class FakeResponse:
+        status_code = 200
+        text = "<html></html>"
+
+    class FakeHttpClient:
+        def __init__(self):
+            self.calls = 0
+
+        def get(self, _url, *, params):
+            self.calls += 1
+            if self.calls == 1:
+                raise httpx.ReadTimeout("timed out")
+            return FakeResponse()
+
+    client = CVCClient.__new__(CVCClient)
+    client.base_url = "https://search.cvc.edu"
+    client._client = FakeHttpClient()
+    client._last_request_at = 0.0
+    monkeypatch.setattr(client, "_throttle", lambda: None)
+
+    assert client.search_html(parse_code("FA26"), "online_async", "MATH") == "<html></html>"
+    assert client._client.calls == 2
 
 
 def test_parse_search_html_skips_unparseable_titles():

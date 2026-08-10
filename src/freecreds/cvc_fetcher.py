@@ -79,6 +79,8 @@ log = logging.getLogger(__name__)
 CVC_BASE_URL = "https://search.cvc.edu"
 USER_AGENT = "FreeCreds/0.1 (+https://github.com/ivan-grebe/freecreds)"
 THROTTLE_S = 0.6
+CVC_MAX_RETRIES = 4
+CVC_RETRYABLE_STATUS_CODES = {408, 429, 500, 502, 503, 504}
 MAX_PAGES_PER_QUERY = 1_000  # emergency ceiling if CVC omits its advertised final page
 CVC_HOME_UNIVERSITY_ID = "101"
 MIN_REFRESH_BASELINE = 100
@@ -283,6 +285,35 @@ class CVCClient:
             return None
         return sessions
 
+    def _get_with_retries(self, url: str, *, params: list[tuple[str, str]], page: int) -> httpx.Response:
+        """Retry transient CVC failures without publishing an incomplete crawl."""
+        last_error: httpx.HTTPError | None = None
+        for attempt in range(1, CVC_MAX_RETRIES + 1):
+            try:
+                response = self._client.get(url, params=params)
+            except httpx.HTTPError as exc:
+                last_error = exc
+                detail = str(exc)
+            else:
+                if response.status_code not in CVC_RETRYABLE_STATUS_CODES:
+                    return response
+                detail = f"HTTP {response.status_code}"
+                if attempt == CVC_MAX_RETRIES:
+                    return response
+            if attempt < CVC_MAX_RETRIES:
+                delay = 2 ** (attempt - 1)
+                log.warning(
+                    "CVC request failed (page %d, attempt %d/%d): %s; retrying in %ds",
+                    page,
+                    attempt,
+                    CVC_MAX_RETRIES,
+                    detail,
+                    delay,
+                )
+                time.sleep(delay)
+        assert last_error is not None
+        raise last_error
+
     def search_html(
         self,
         term: Term,
@@ -304,7 +335,7 @@ class CVCClient:
         ]
         url = f"{self.base_url}/search"
         try:
-            resp = self._client.get(url, params=params)
+            resp = self._get_with_retries(url, params=params, page=page)
         except httpx.HTTPError as e:
             log.warning("CVC HTTP error (page %d): %s", page, e)
             return None
