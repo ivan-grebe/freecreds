@@ -60,6 +60,9 @@ npm run cf:deploy
 npm run cf:deploy:refresh
 ```
 
+The migration baseline represents the production schema as of September 5, 2026.
+Older local SQLite databases should be regenerated before running ingestion.
+
 ### First-time database setup
 
 Create a D1 database, put its ID in `wrangler.toml` and `config/wrangler.refresh.toml`, then apply every migration:

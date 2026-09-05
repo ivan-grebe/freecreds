@@ -10,6 +10,12 @@ import {
 describe("HTTP helpers", () => {
   afterEach(() => vi.unstubAllGlobals());
 
+  it("preserves caller Headers alongside the default response headers", () => {
+    const response = json({}, { headers: new Headers({ "cache-control": "no-store" }) });
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+  });
+
   it("parses supported boolean values", () => {
     expect(parseBooleanParam(new URL("https://example.test/?flag=1"), "flag")).toBe(true);
     expect(parseBooleanParam(new URL("https://example.test/?flag=TRUE"), "flag")).toBe(true);

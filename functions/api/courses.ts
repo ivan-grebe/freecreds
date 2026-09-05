@@ -1,5 +1,5 @@
 import type { CourseRow, InstitutionRow } from "../_shared/api-types";
-import { allRows, firstRow } from "../_shared/d1";
+import { allRows } from "../_shared/d1";
 import { latestIngestVersion } from "../_shared/ingest-version";
 import {
   cachedResponse,
@@ -34,11 +34,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ env, request, waitUntil
 };
 
 export async function buildCourseResponse(env: Env, university: string): Promise<Response> {
-  const uni = await firstRow<InstitutionRow>(
-    env.DB.prepare(
-      "SELECT id, code, name FROM institutions WHERE code = ? COLLATE NOCASE",
-    ).bind(university),
-  );
+  const uni = await env.DB.prepare(
+    "SELECT id, code, name FROM institutions WHERE code = ? COLLATE NOCASE",
+  ).bind(university).first<InstitutionRow>();
   if (!uni) {
     return error(404, `Unknown university code ${JSON.stringify(university)}`);
   }
