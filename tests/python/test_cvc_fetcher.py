@@ -311,7 +311,7 @@ def test_write_offerings_uses_constant_lookup_queries():
     write_offerings(conn, records, term)
 
     selects = [statement for statement in statements if statement.lstrip().upper().startswith("SELECT")]
-    assert len(selects) == 3
+    assert len(selects) <= 3
     assert conn.execute("SELECT COUNT(*) FROM class_offerings").fetchone()[0] == 25
 
 

@@ -1,32 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
 
 import { matchingBundleModality } from "../../functions/api/reverse";
 
-const cases = JSON.parse(
-  readFileSync(new URL("../contracts/bundle_offerings.json", import.meta.url), "utf8"),
-);
-
-describe("reverse lookup bundle contract", () => {
-  for (const contract of cases) {
-    it(contract.name, () => {
-      const offerings = new Map(
-        Object.entries(contract.offerings).map(([key, terms]) => [
-          key,
-          new Map(
-            Object.entries(terms).map(([termId, modality]) => [Number(termId), modality]),
-          ),
-        ]),
-      ) as Map<string, Map<number, string>>;
-
-      expect(
-        matchingBundleModality(
-          offerings,
-          contract.keys,
-          contract.term_ids,
-          contract.async_only,
-        ) ?? null,
-      ).toBe(contract.expected);
-    });
-  }
+describe("reverse lookup bundles", () => {
+  it.each([
+    ["members in different terms do not match", 11, "online_async", null],
+    ["all async members in one term match", 10, "online_async", "online_async"],
+    ["sync companion fails async-only", 10, "online_sync", null],
+  ] as const)("%s", (_name, companionTerm, companionModality, expected) => {
+    const offerings = new Map([
+      ["1|MATH|1A", new Map([[10, "online_async"]])],
+      ["1|MATH|1B", new Map([[companionTerm, companionModality]])],
+    ]);
+    expect(matchingBundleModality(
+      offerings, ["1|MATH|1A", "1|MATH|1B"], [10, 11], true,
+    ) ?? null).toBe(expected);
+  });
 });

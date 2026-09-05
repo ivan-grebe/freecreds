@@ -24,9 +24,6 @@ class Term:
     season: str     # "Fall"
     year: int       # 2026
 
-    def to_dict(self) -> dict:
-        return {"code": self.code, "label": self.label, "season": self.season, "year": self.year}
-
 
 def _make(season_abbr: str, year: int) -> Term:
     season = SEASON_LABELS[season_abbr]

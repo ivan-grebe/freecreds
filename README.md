@@ -25,12 +25,12 @@ FreeCreds helps California students find community-college courses that articula
 
 ## Run locally
 
-Requirements: Python 3.10+, Node.js 22+, npm, and SQLite.
+Requirements: Python 3.10+, Node.js 22.13+, npm, and SQLite.
 
 ```bash
 git clone https://github.com/ivan-grebe/freecreds.git
 cd freecreds
-python -m pip install -c requirements-dev.lock -e ".[dev]"
+python -m pip install -c config/requirements-dev.lock -e ".[dev]"
 npm ci
 ```
 
@@ -46,22 +46,23 @@ npm run cf:dev
 npm run check
 ```
 
-That runs Python lint and tests, TypeScript typechecking, Vitest, and the migration validator. GitHub Actions runs the same checks on every pull request and each push to `main`.
+That runs Python and JavaScript lint, TypeScript typechecking, and both test suites. Database tests apply the real migrations; API query tests execute against SQLite. GitHub Actions runs the same checks on every pull request and each push to `main`.
 
 ## Deployment
 
-Pushing to `main` deploys automatically: the [deploy workflow](.github/workflows/deploy.yml) runs the full check suite, then publishes the Pages site and the refresh Worker. You can also trigger it manually from the Actions tab.
+Pushing to `main` deploys automatically: the [deploy workflow](.github/workflows/deploy.yml) runs the full check suite, applies database migrations, then publishes the Pages site and the refresh Worker. You can also trigger it manually from the Actions tab.
 
 To deploy by hand instead:
 
 ```bash
+npm run cf:db:schema
 npm run cf:deploy
 npm run cf:deploy:refresh
 ```
 
 ### First-time database setup
 
-Create a D1 database, put its ID in `wrangler.toml` and `wrangler.refresh.toml`, then apply every migration:
+Create a D1 database, put its ID in `wrangler.toml` and `config/wrangler.refresh.toml`, then apply every migration:
 
 ```bash
 npm run cf:db:create

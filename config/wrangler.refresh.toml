@@ -1,10 +1,7 @@
 name = "freecreds-refresh"
-main = "src/workers/refresh.ts"
+main = "../src/workers/refresh.ts"
 compatibility_date = "2026-04-22"
-# Cloudflare cron expressions are UTC.
-# - CVC: roughly twice monthly.
-# ASSIST refresh remains manual on the free-plan setup because a full
-# articulation import writes millions of rows.
+# CVC runs twice monthly (UTC); ASSIST is refreshed manually.
 [triggers]
 crons = [
   "0 9 1,15 * *"

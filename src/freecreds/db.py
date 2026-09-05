@@ -1,7 +1,4 @@
-"""SQLite schema and helpers.
-
-One connection per caller. No ORM for MVP — plain sqlite3.
-"""
+"""SQLite migrations and ingestion queries."""
 from __future__ import annotations
 
 import json
@@ -165,36 +162,6 @@ def insert_articulation(
     return cur.lastrowid if cur.rowcount else None
 
 
-def insert_course_group(
-    conn: sqlite3.Connection,
-    articulation_id: int,
-    conjunction: str,
-    position: int,
-) -> int:
-    cur = conn.execute(
-        """INSERT INTO articulation_course_groups
-             (articulation_id, conjunction, position)
-           VALUES (?, ?, ?)""",
-        (articulation_id, conjunction, position),
-    )
-    return cur.lastrowid
-
-
-def insert_group_member(
-    conn: sqlite3.Connection,
-    group_id: int,
-    sending_course_id: int,
-    position: int,
-) -> int:
-    cur = conn.execute(
-        """INSERT INTO articulation_group_members
-             (group_id, sending_course_id, position)
-           VALUES (?, ?, ?)""",
-        (group_id, sending_course_id, position),
-    )
-    return cur.lastrowid
-
-
 def insert_reverse_index_rows(
     conn: sqlite3.Connection,
     rows: Iterable[tuple[int, int, int, bool, list[int], int, str, list[int]]],
@@ -219,17 +186,6 @@ def insert_reverse_index_rows(
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
         payload,
     )
-
-
-def insert_cross_listing(
-    conn: sqlite3.Connection, primary_course_id: int, alias_course_id: int
-) -> bool:
-    cur = conn.execute(
-        """INSERT OR IGNORE INTO cross_listings (primary_course_id, alias_course_id)
-           VALUES (?, ?)""",
-        (primary_course_id, alias_course_id),
-    )
-    return cur.rowcount > 0
 
 
 def upsert_term(
@@ -354,23 +310,6 @@ def clear_articulation_data(
     """Remove all articulation data for a university+year. Used to make
     ingestion idempotent.
     """
-    conn.execute(
-        """DELETE FROM articulation_group_members
-           WHERE group_id IN (
-             SELECT g.id FROM articulation_course_groups g
-             JOIN articulations a ON a.id = g.articulation_id
-             WHERE a.university_id = ? AND a.academic_year_id = ?
-           )""",
-        (university_id, academic_year_id),
-    )
-    conn.execute(
-        """DELETE FROM articulation_course_groups
-           WHERE articulation_id IN (
-             SELECT id FROM articulations
-             WHERE university_id = ? AND academic_year_id = ?
-           )""",
-        (university_id, academic_year_id),
-    )
     conn.execute(
         """DELETE FROM reverse_index
            WHERE academic_year_id = ? AND receiving_course_id IN (

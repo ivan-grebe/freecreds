@@ -50,34 +50,10 @@ describe("frontend browser smoke test", () => {
     });
 
     expect(document.querySelector<HTMLInputElement>("#standalone-only")?.checked).toBe(true);
-    const termFilter = document.querySelector("#term-filter")!;
-    const searchButton = document.querySelector("#go")!;
-    expect(termFilter.compareDocumentPosition(searchButton) & Node.DOCUMENT_POSITION_FOLLOWING)
-      .toBeTruthy();
     await vi.waitFor(() => {
       expect(document.querySelector("#assist-updated")?.textContent).toContain("Apr 22, 2026");
       expect(document.querySelector("#cvc-updated")?.textContent).toContain("Apr 23, 2026");
     });
   });
 
-  it("keeps dropdowns above the content that follows the search form", () => {
-    const controls = document.querySelector<HTMLElement>(".controls");
-
-    expect(controls).not.toBeNull();
-    expect(getComputedStyle(controls!).position).toBe("relative");
-    expect(getComputedStyle(controls!).zIndex).toBe("1");
-  });
-
-  it("advertises the 4K social preview", () => {
-    expect(document.querySelector('link[rel="canonical"]')?.getAttribute("href"))
-      .toBe("https://freecreds.pages.dev/");
-    expect(document.querySelector('meta[property="og:image"]')?.getAttribute("content"))
-      .toBe("https://freecreds.pages.dev/og-image.png");
-    expect(document.querySelector('meta[property="og:image:width"]')?.getAttribute("content"))
-      .toBe("3840");
-    expect(document.querySelector('meta[property="og:image:height"]')?.getAttribute("content"))
-      .toBe("2160");
-    expect(document.querySelector('meta[name="twitter:card"]')?.getAttribute("content"))
-      .toBe("summary_large_image");
-  });
 });

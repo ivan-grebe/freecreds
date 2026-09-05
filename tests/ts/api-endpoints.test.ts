@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { buildCourseResponse } from "../../functions/api/courses";
+import { onRequestGet as getStatus } from "../../functions/api/status";
 import {
   buildReverseResponse,
   parseCompanionIds,
@@ -8,7 +9,7 @@ import {
   type ReverseQuery,
 } from "../../functions/api/reverse";
 import { latestIngestVersion } from "../../functions/_shared/ingest-version";
-import { fakeD1 } from "./d1-fake";
+import { createTestDatabase } from "./d1-sqlite";
 
 const query: ReverseQuery = {
   university: "CSUFULL",
@@ -19,173 +20,81 @@ const query: ReverseQuery = {
   termCodes: [],
 };
 
-describe("production D1 API implementations", () => {
+let database: ReturnType<typeof createTestDatabase>;
+
+beforeEach(() => {
+  database = createTestDatabase();
+  database.sqlite.exec(`
+    INSERT INTO institutions (id, assist_id, code, name, category, term_type) VALUES
+      (1, 100, 'CSUFULL', 'Cal State Fullerton', 'CSU', 'Semester'),
+      (2, 200, 'TESTCC', 'Test College', 'CCC', 'Semester'),
+      (3, 300, 'NOART', 'No Articulation College', 'CCC', 'Semester');
+    INSERT INTO courses
+      (id, institution_id, course_identifier_parent_id, prefix, number, title, is_terminated)
+    VALUES
+      (10, 1, 10, 'MATH', '170A', 'Calculus', 0),
+      (11, 1, 11, 'HIST', '101', 'Old History', 0),
+      (12, 1, 12, 'MATH', '999', 'Terminated Math', 1),
+      (20, 2, 20, 'MATH', '1A', 'Calculus I', 0);
+    INSERT INTO articulations
+      (receiving_course_id, sending_cc_id, university_id, academic_year_id, no_articulation_reason)
+    VALUES (10, 2, 1, 76, NULL), (11, 2, 1, 75, NULL),
+      (12, 2, 1, 76, NULL), (10, 3, 1, 76, 'No Course Articulated');
+    INSERT INTO reverse_index
+      (receiving_course_id, sending_cc_id, sending_course_id,
+       is_standalone_equivalent, companion_course_ids, academic_year_id)
+    VALUES (10, 2, 20, 1, '[]', 76);
+  `);
+});
+
+afterEach(() => database.sqlite.close());
+
+describe("D1 API queries executed against SQLite", () => {
   it("lists only current, non-terminated courses", async () => {
-    const db = fakeD1((sql, params) => {
-      if (sql.includes("FROM institutions")) {
-        return [{ id: 1, code: "CSUFULL", name: "Cal State Fullerton" }];
-      }
-      if (sql.includes("WITH latest_year")) {
-        expect(sql).toContain("c.is_terminated = 0");
-        expect(sql).toContain("a.academic_year_id = (SELECT id FROM latest_year)");
-        expect(params).toEqual([1, 1]);
-        return [{
-          prefix: "MATH",
-          number: "170A",
-          title: "Calculus",
-          min_units: 4,
-          max_units: 4,
-        }];
-      }
-      throw new Error(`Unexpected SQL: ${sql}`);
-    });
-
-    const response = await buildCourseResponse({ DB: db }, "CSUFULL");
-
+    const response = await buildCourseResponse({ DB: database.db }, "csufull");
     expect(response.status).toBe(200);
-    expect((await response.json()).courses).toHaveLength(1);
-  });
-
-  it("rejects a course that is absent from the university's current year", async () => {
-    const db = fakeD1((sql) => {
-      if (sql.includes("FROM institutions")) {
-        return [{ id: 1, code: "CSUFULL", name: "Cal State Fullerton" }];
-      }
-      if (sql.includes("MAX(academic_year_id)")) return [{ year_id: 76 }];
-      if (sql.includes("FROM courses")) {
-        expect(sql).toContain("is_terminated = 0");
-        expect(sql).toContain("a.academic_year_id = ?");
-        return [];
-      }
-      throw new Error(`Unexpected SQL: ${sql}`);
-    });
-
-    const response = await buildReverseResponse({ DB: db }, {
-      ...query,
-      prefix: "HIST",
-      number: "101",
-    });
-
-    expect(response.status).toBe(404);
-    expect((await response.json()).error).toContain("No HIST 101");
-  });
-
-  it("builds a reverse response through the production query path", async () => {
-    const db = fakeD1((sql) => {
-      if (sql.includes("FROM institutions") && !sql.includes("JOIN institutions")) {
-        return [{ id: 1, code: "CSUFULL", name: "Cal State Fullerton" }];
-      }
-      if (sql.includes("MAX(academic_year_id)")) return [{ year_id: 76 }];
-      if (sql.includes("FROM courses") && sql.includes("number = ?")) {
-        return [{
-          id: 10,
-          prefix: "MATH",
-          number: "170A",
-          title: "Calculus",
-          min_units: 4,
-          max_units: 4,
-        }];
-      }
-      if (sql.includes("cc_course_id")) {
-        return [{
-          cc_code: "TESTCC",
-          cc_name: "Test College",
-          cc_course_id: 20,
-          cc_prefix: "MATH",
-          cc_number: "1A",
-          cc_title: "Calculus I",
-          min_units: 4,
-          max_units: 4,
-          is_standalone_equivalent: 1,
-          companion_course_ids: "[]",
-          receiving_companion_course_ids: null,
-          cc_institution_id: 2,
-          sources_csv: "AllDepartments",
-          academic_year_id: 76,
-        }];
-      }
-      if (sql.includes("no_articulation_reason")) {
-        return [{
-          cc_code: "NOART",
-          cc_name: "No Articulation College",
-          no_articulation_reason: "No Course Articulated",
-        }];
-      }
-      throw new Error(`Unexpected SQL: ${sql}`);
-    });
-
-    const response = await buildReverseResponse({ DB: db }, query);
     const payload = await response.json();
+    expect(payload.courses.map((course) => [course.prefix, course.number]))
+      .toEqual([["MATH", "170A"]]);
+  });
 
+  it.each([['HIST', '101'], ['MATH', '999']])(
+    "rejects unavailable or terminated course %s %s",
+    async (prefix, number) => {
+      const response = await buildReverseResponse({ DB: database.db }, {
+        ...query, prefix, number,
+      });
+      expect(response.status).toBe(404);
+      const payload = await response.json();
+      expect(payload.results).toBeUndefined();
+    },
+  );
+
+  it("returns articulations and colleges with no articulation", async () => {
+    const response = await buildReverseResponse({ DB: database.db }, query);
+    const payload = await response.json();
     expect(response.status).toBe(200);
     expect(payload.query.academic_year_id).toBe(76);
-    expect(payload.results).toHaveLength(1);
-    expect(payload.results[0].cc_code).toBe("TESTCC");
-    expect(payload.no_articulation).toEqual([{
-      cc_code: "NOART",
-      cc_name: "No Articulation College",
-      reason: "No Course Articulated",
-    }]);
+    expect(payload.results.map((row) => row.cc_code)).toEqual(["TESTCC"]);
+    expect(payload.no_articulation.map((row) => row.cc_code)).toEqual(["NOART"]);
   });
 
-  it("includes the matching CVC listing URL for each offered term", async () => {
-    const db = fakeD1((sql) => {
-      if (sql.includes("FROM institutions") && !sql.includes("JOIN institutions")) {
-        return [{ id: 1, code: "CSUFULL", name: "Cal State Fullerton" }];
-      }
-      if (sql.includes("MAX(academic_year_id)")) return [{ year_id: 76 }];
-      if (sql.includes("FROM courses c") && sql.includes("c.number = ?")) {
-        return [{
-          id: 10,
-          prefix: "MATH",
-          number: "170A",
-          title: "Calculus",
-          min_units: 4,
-          max_units: 4,
-        }];
-      }
-      if (sql.includes("SELECT id, code, label FROM terms")) {
-        return [{ id: 101, code: "FA26", label: "Fall 2026" }];
-      }
-      if (sql.includes("cc_course_id")) {
-        return [{
-          cc_code: "TESTCC",
-          cc_name: "Test College",
-          cc_course_id: 20,
-          cc_prefix: "MATH",
-          cc_number: "1A",
-          cc_title: "Calculus I",
-          min_units: 4,
-          max_units: 4,
-          is_standalone_equivalent: 1,
-          companion_course_ids: "[]",
-          receiving_companion_course_ids: null,
-          cc_institution_id: 2,
-          sources_csv: "AllDepartments",
-          academic_year_id: 76,
-        }];
-      }
-      if (sql.includes("FROM class_offerings")) {
-        expect(sql).toContain("source_ref");
-        return [{
-          institution_id: 2,
-          prefix: "MATH",
-          number: "1A",
-          term_id: 101,
-          modality: "online_async",
-          source_ref: "https://search.cvc.edu/courses/1842959",
-        }];
-      }
-      if (sql.includes("no_articulation_reason")) return [];
-      throw new Error(`Unexpected SQL: ${sql}`);
-    });
-
-    const response = await buildReverseResponse({ DB: db }, {
-      ...query,
-      termCodes: ["FA26"],
+  it("only includes CVC offerings for the selected term", async () => {
+    database.sqlite.exec(`
+      INSERT INTO terms (id, code, label, season, year) VALUES
+        (101, 'FA26', 'Fall 2026', 'Fall', 2026),
+        (102, 'SP27', 'Spring 2027', 'Spring', 2027);
+      INSERT INTO class_offerings
+        (institution_id, prefix, number, term_id, modality, source, source_ref, fetched_at)
+      VALUES (2, 'MATH', '1A', 101, 'online_async', 'cvc',
+        'https://search.cvc.edu/courses/1842959', '2026-07-01'),
+        (2, 'MATH', '1A', 102, 'online_sync', 'cvc',
+        'https://search.cvc.edu/courses/other-term', '2026-07-01');
+    `);
+    const response = await buildReverseResponse({ DB: database.db }, {
+      ...query, termCodes: ["FA26"],
     });
     const payload = await response.json();
-
     expect(payload.results[0].offering_terms).toEqual([{
       code: "FA26",
       label: "Fall 2026",
@@ -216,15 +125,31 @@ describe("production D1 API implementations", () => {
     expect(parseCompanionIds('[true, 12, 13.5, "14"]')).toEqual([12]);
   });
 
-  it("builds cache versions from completed ingestion timestamps", async () => {
-    const db = fakeD1(() => [
-      { kind: "assist", finished_at: "2026-07-01T10:00:00Z" },
-      { kind: "cvc", finished_at: "2026-07-15T10:00:00Z" },
-    ]);
+  it("invalidates cache versions only after a completed refresh", async () => {
+    const version = () => latestIngestVersion(database.db, ["assist", "cvc"]);
+    const initial = await version();
+    database.sqlite.exec(`
+      INSERT INTO ingest_jobs (id, kind, status, requested_by, started_at, finished_at)
+      VALUES ('job', 'cvc', 'failed', 'test', '2026-07-15', '2026-07-15T10:00:00Z');
+    `);
+    expect(await version()).toBe(initial);
+    database.sqlite.exec("UPDATE ingest_jobs SET status = 'completed' WHERE id = 'job'");
+    expect(await version()).not.toBe(initial);
+  });
 
-    await expect(latestIngestVersion(db, ["assist", "cvc"]))
-      .resolves.toBe(
-        "assist:2026-07-01T10:00:00Z|cvc:2026-07-15T10:00:00Z",
-      );
+  it("reports the latest successful refresh, ignoring newer failures", async () => {
+    database.sqlite.exec(`
+      INSERT INTO ingest_jobs (id, kind, status, requested_by, started_at, finished_at)
+      VALUES ('older', 'cvc', 'completed', 'test', '2026-07-01', '2026-07-01T10:00:00Z'),
+        ('latest', 'cvc', 'completed', 'test', '2026-07-15', '2026-07-15T10:00:00Z'),
+        ('failed', 'cvc', 'failed', 'test', '2026-08-01', '2026-08-01T10:00:00Z');
+    `);
+    const response = await getStatus({
+      env: { DB: database.db },
+    } as Parameters<typeof getStatus>[0]);
+    expect((await response.json()).updated_at).toEqual({
+      assist: null,
+      cvc: "2026-07-15T10:00:00Z",
+    });
   });
 });
