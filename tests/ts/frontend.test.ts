@@ -30,10 +30,9 @@ describe("frontend result logic", () => {
 
     const result = dedupeBundleRows([first, second]);
 
-    expect(result.hidden).toBe(1);
-    expect(result.rows).toHaveLength(1);
-    expect(result.rows[0].offering_status).toBe("async_online");
-    expect(result.rows[0].sources).toEqual(["AllDepartments", "Major: Mathematics"]);
+    expect(result).toHaveLength(1);
+    expect(result[0].offering_status).toBe("async_online");
+    expect(result[0].sources).toEqual(["AllDepartments", "Major: Mathematics"]);
   });
 
   it("accepts only trusted CVC source links", () => {

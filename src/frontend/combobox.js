@@ -8,16 +8,27 @@ export function createCombo({
   displayText,
   exactShortcuts,
   onSelect,
+  onInput,
 }) {
   const state = { items: [], filtered: [], activeIndex: -1, selected: null };
+
+  function syncActiveOption() {
+    if (list.classList.contains("open") && state.activeIndex >= 0) {
+      input.setAttribute("aria-activedescendant", `${list.id}-option-${state.activeIndex}`);
+    } else {
+      input.removeAttribute("aria-activedescendant");
+    }
+  }
 
   function setOpen(open) {
     list.classList.toggle("open", open);
     input.setAttribute("aria-expanded", open ? "true" : "false");
+    syncActiveOption();
   }
 
   function render() {
     list.replaceChildren();
+    syncActiveOption();
     if (!state.filtered.length) {
       list.appendChild(el("li", { class: "combo-empty" }, "No matches"));
       return;
@@ -33,6 +44,8 @@ export function createCombo({
       const option = el("li", {
         class: `combo-item${index === state.activeIndex ? " active" : ""}`,
         role: "option",
+        id: `${list.id}-option-${index}`,
+        "aria-selected": String(index === state.activeIndex),
         "data-index": String(index),
       });
       for (const part of [].concat(renderItem(item))) {
@@ -80,13 +93,15 @@ export function createCombo({
 
   input.addEventListener("input", () => {
     state.selected = null;
+    onInput?.();
     updateFiltered();
     setOpen(true);
   });
   input.addEventListener("focus", openOnFocus);
   input.addEventListener("click", openOnFocus);
-  document.addEventListener("mousedown", (event) => {
-    if (!input.contains(event.target) && !list.contains(event.target)) setOpen(false);
+  input.addEventListener("blur", () => {
+    setOpen(false);
+    if (!state.selected) promoteTypedSelection();
   });
   input.addEventListener("keydown", (event) => {
     if (!list.classList.contains("open")) {
@@ -121,6 +136,22 @@ export function createCombo({
     }
   });
 
+  function promoteTypedSelection() {
+    if (state.selected) return state.selected;
+    const typed = input.value.trim().toLowerCase();
+    if (!typed) return null;
+    const match = state.items.find((item) => (
+      displayText(item).toLowerCase() === typed
+      || (exactShortcuts?.(item) || []).some((value) => value.toLowerCase() === typed)
+    ));
+    if (match) {
+      state.selected = match;
+      input.value = displayText(match);
+      onSelect?.(match);
+    }
+    return match || null;
+  }
+
   return {
     setItems(items) {
       state.items = items;
@@ -128,9 +159,7 @@ export function createCombo({
       state.activeIndex = -1;
       state.selected = null;
       input.value = "";
-    },
-    getSelected() {
-      return state.selected;
+      setOpen(false);
     },
     setEnabled(enabled, placeholder) {
       input.disabled = !enabled;
@@ -144,17 +173,6 @@ export function createCombo({
       input.value = "";
       setOpen(false);
     },
-    tryPromoteTypedSelection() {
-      if (state.selected) return state.selected;
-      const typed = input.value.trim().toLowerCase();
-      if (!typed) return null;
-      const shortcuts = exactShortcuts || (() => []);
-      const match = state.items.find((item) => (
-        displayText(item).toLowerCase() === typed
-        || (shortcuts(item) || []).some((value) => value.toLowerCase() === typed)
-      ));
-      if (match) state.selected = match;
-      return match || null;
-    },
+    tryPromoteTypedSelection: promoteTypedSelection,
   };
 }

@@ -46,7 +46,6 @@ function courseIdentity(course) {
 export function dedupeBundleRows(rows) {
   const byBundle = new Map();
   const output = [];
-  let hidden = 0;
 
   for (const row of rows) {
     if (row.is_standalone || !row.companion_courses || !row.companion_courses.length) {
@@ -76,12 +75,11 @@ export function dedupeBundleRows(rows) {
       continue;
     }
 
-    hidden += 1;
     existing.sources = Array.from(new Set([...(existing.sources || []), ...(row.sources || [])]));
     if (offeringRank(row.offering_status) > offeringRank(existing.offering_status)) {
       existing.offering_status = row.offering_status;
     }
   }
 
-  return { rows: output, hidden };
+  return output;
 }

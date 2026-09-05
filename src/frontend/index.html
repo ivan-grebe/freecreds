@@ -3,15 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Find California community college courses that satisfy university transfer requirements, with current online availability from CVC.">
+  <meta name="description" content="Find California community college courses that satisfy university transfer requirements, with online class listings from CVC.">
   <link rel="canonical" href="https://freecreds.pages.dev/">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <title>FreeCreds.pages.dev :: California Transfer Course Finder</title>
+  <title>FREECREDS :: California Transfer Course Finder</title>
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="FreeCreds">
   <meta property="og:url" content="https://freecreds.pages.dev/">
   <meta property="og:title" content="FreeCreds: California Transfer Course Finder">
-  <meta property="og:description" content="Find California community college courses that satisfy university transfer requirements, with current online availability from CVC.">
+  <meta property="og:description" content="Find California community college courses that satisfy university transfer requirements, with online class listings from CVC.">
   <meta property="og:image" content="https://freecreds.pages.dev/og-image.png">
   <meta property="og:image:secure_url" content="https://freecreds.pages.dev/og-image.png">
   <meta property="og:image:type" content="image/png">
@@ -20,7 +20,7 @@
   <meta property="og:image:alt" content="FreeCreds California Transfer Course Finder website preview">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="FreeCreds: California Transfer Course Finder">
-  <meta name="twitter:description" content="Find California community college courses that satisfy university transfer requirements, with current online availability from CVC.">
+  <meta name="twitter:description" content="Find California community college courses that satisfy university transfer requirements, with online class listings from CVC.">
   <meta name="twitter:image" content="https://freecreds.pages.dev/og-image.png">
   <meta name="twitter:image:alt" content="FreeCreds California Transfer Course Finder website preview">
   <script>
@@ -214,7 +214,7 @@
 
     .brand-wordmark {
       display: block;
-      width: min(469px, 100%);
+      width: min(330px, 100%);
       height: auto;
     }
 
@@ -437,7 +437,7 @@
     .term-options label:has(input:checked) { color: #1c3105; background: var(--lime); border-color: #718d25; font-weight: bold; }
     .term-loading { display: flex; align-items: center; min-height: 40px; color: var(--muted); font-style: italic; }
 
-    .checkbox-filter-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+    .checkbox-filter-row { display: grid; gap: 5px; }
     .checkbox-filter-row label {
       display: flex;
       align-items: center;
@@ -497,39 +497,25 @@
     #go:active { transform: scale(.96); border-style: inset; }
     button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
-    #output { margin-top: 12px; }
+    #output { margin-top: 12px; scroll-margin-top: 12px; }
     .meta { margin: 0 0 7px; color: var(--muted); font-size: 10px; }
     .meta, .result-header h2, .combo-count, .source-note { font-variant-numeric: tabular-nums; }
     .result-header { margin: 0; border: 1px solid var(--line-dark); border-bottom: 0; }
-    .result-header h2 { margin: 0; padding: 6px 8px; color: #ffffff; background: var(--blue); font: bold 11px Tahoma, Verdana, sans-serif; text-transform: uppercase; }
+    .result-header h2 { margin: 0; padding: 9px; color: #ffffff; background: var(--blue); font: bold 14px Tahoma, Verdana, sans-serif; text-transform: uppercase; }
 
-    .cvc-callout { margin: 0 0 8px; padding: 7px 8px; color: #342d06; background: var(--yellow); border: 1px solid #b69b28; font-size: 10px; }
+    .cvc-callout { margin: 0 0 8px; padding: 7px 8px; color: #342d06; background: var(--yellow); border: 1px solid #b69b28; font-size: 11px; line-height: 1.5; }
     .cvc-callout::before { content: "! "; color: var(--red); font-weight: bold; }
-    .cvc-callout a { font-weight: bold; }
 
-    table { width: 100%; border-spacing: 0; border-collapse: collapse; color: var(--ink); background: var(--paper); border: 1px solid var(--line-dark); font-size: 10px; }
-    th, td { padding: 7px 8px; text-align: left; vertical-align: top; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-    th:last-child, td:last-child { border-right: 0; }
-    tr:last-child td { border-bottom: 0; }
-    th { color: var(--blue-dark); background: var(--table-head); font: bold 9px Tahoma, sans-serif; text-transform: uppercase; }
-    tbody tr:hover td { background: var(--row-hover); }
-
-    .badge { display: inline-block; padding: 2px 5px; border: 1px solid currentColor; border-radius: 0; font: bold 9px Tahoma, sans-serif; text-transform: uppercase; white-space: nowrap; }
-    .badge.standalone, .badge.async-online { color: var(--green); background: var(--lime); }
-    .badge.bundle { color: #854200; background: #ffe0a6; }
+    .badge { display: inline-block; padding: 2px 5px; border: 1px solid currentColor; border-radius: 0; font: bold 10px Tahoma, sans-serif; text-transform: uppercase; white-space: nowrap; }
+    .badge.async-online { color: var(--green); background: var(--lime); }
     .badge.online-sync { color: var(--blue); background: var(--blue-light); }
     .badge.unknown { color: var(--muted); background: var(--disabled); }
-    .badge.offering-link { position: relative; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; transition: transform 120ms ease-out; }
-    .badge.offering-link::after { content: ""; position: absolute; inset: -5px -7px; }
-    .badge.offering-link:hover { filter: brightness(.92); }
-    .badge.offering-link:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
-    .badge.offering-link:active { transform: scale(.96); }
-    .offering-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
-    .offering-list li { display: flex; min-height: 26px; align-items: center; gap: 5px; }
-    .offering-term { color: var(--muted); font-size: 9px; }
+    .offering-list { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+    .offering-list li { display: flex; flex-wrap: wrap; min-height: 26px; align-items: center; gap: 6px 10px; }
+    .offering-term { color: var(--muted); font-size: 11px; }
     .companion-list, .receiving-companion-list { margin: 4px 0 0; padding-left: 16px; color: var(--muted); }
     .receiving-companion-list { color: var(--blue); }
-    .source-note { margin-top: 4px; color: var(--muted); font: 9px Tahoma, sans-serif; text-transform: uppercase; }
+    .source-note { margin-top: 4px; color: var(--muted); font: 11px Tahoma, sans-serif; }
     .no-art-list { padding: 0 8px 8px; font-size: 10px; }
     .no-art-item { padding: 3px 0; border-bottom: 1px dotted var(--line); }
 
@@ -574,16 +560,6 @@
       .search-actions { display: grid; grid-template-columns: 1fr; }
       #go { width: 100%; }
 
-      table, thead, tbody, tr, td { display: block; width: 100%; }
-      table { border: 0; background: transparent; }
-      thead { display: none; }
-      tbody { display: grid; gap: 7px; }
-      tr { border: 1px solid var(--line-dark); background: var(--paper); }
-      td { border: 0; border-bottom: 1px dotted var(--line); padding: 7px; }
-      td:last-child { border-bottom: 0; }
-      td::before { content: attr(data-label); display: block; margin-bottom: 2px; color: var(--blue-dark); font: bold 8px Tahoma, sans-serif; text-transform: uppercase; }
-      :root[data-effective-theme="dark"] td::before { color: #b8dbff; }
-      .offering-list li { justify-content: space-between; }
     }
 
     @media (max-width: 430px) {
@@ -599,7 +575,7 @@
       main { padding-inline: 6px; }
       .panel-title { align-items: flex-start; }
       .panel-title small { display: none; }
-      .term-options { grid-template-columns: 1fr; }
+      .term-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -607,13 +583,64 @@
       .spinner { animation: none; }
       .theme-icon { filter: none !important; transform: none !important; }
     }
+
+    [hidden] { display: none !important; }
+    .logo-dark { display: none; }
+    :root[data-effective-theme="dark"] .logo-light { display: none; }
+    :root[data-effective-theme="dark"] .logo-dark { display: block; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .search-mode { margin: 0; padding: 0; border: 0; }
+    .search-mode legend { font-weight: bold; margin-bottom: 4px; }
+    .search-mode label { display: flex; align-items: center; min-height: 40px; gap: 5px; cursor: pointer; }
+    .async-option { display: flex; align-items: center; min-height: 44px; gap: 5px; }
+    input[type="checkbox"], input[type="radio"] { accent-color: var(--blue); flex-shrink: 0; }
+    .result-context { margin: 0; padding: 8px; background: var(--paper-alt); border: 1px solid var(--line); font-size: 12px; }
+    .result-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0; }
+    .secondary-button { color: var(--ink); background: var(--paper-alt); border: 2px outset var(--line); padding: 8px 12px; min-height: 44px; font-weight: bold; cursor: pointer; }
+    .secondary-button:hover { background: var(--blue-light); }
+    .college-list { display: grid; gap: 12px; }
+    .college-card { border: 1px solid var(--line-dark); background: var(--paper); }
+    .college-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px; padding: 9px 10px; background: var(--table-head); border-bottom: 1px solid var(--line); }
+    .college-heading h3 { margin: 0; font: bold 14px Tahoma, sans-serif; }
+    .college-heading span { color: var(--muted); font-size: 11px; }
+    .course-options { list-style: none; padding: 0; margin: 0; }
+    .course-option { padding: 12px; border-bottom: 1px dotted var(--line); }
+    .course-option:last-child { border-bottom: 0; }
+    .course-name { margin: 0 0 5px; font-size: 13px; }
+    .course-name strong { font-size: 15px; }
+    .course-name span { margin-left: 8px; }
+    .course-option .companion-list { color: var(--ink); font-size: 12px; }
+    .agreement-details { margin: 4px 0 0; border: 0; background: transparent; }
+    .agreement-details summary { min-height: 36px; padding: 6px 0; color: var(--muted); cursor: pointer; font-size: 11px; text-transform: none; }
+    .agreement-details p { margin: 4px 0; font-size: 11px; }
+    .listing-heading { margin: 10px 0 3px; font-size: 11px; font-weight: bold; }
+    .cvc-link { display: inline-flex; align-items: center; min-height: 36px; font-size: 11px; }
+    :root[data-effective-theme="dark"] { --lime: #233e2d; }
+    :root[data-effective-theme="dark"] a { color: #add8ff; }
+    :root[data-effective-theme="dark"] a:visited { color: var(--visited); }
+    :root[data-effective-theme="dark"] a:hover { color: #ffc482; }
+    :root[data-effective-theme="dark"] .status-strip,
+    :root[data-effective-theme="dark"] .status-icon,
+    :root[data-effective-theme="dark"] .status-separator,
+    :root[data-effective-theme="dark"] .term-options label:has(input:checked) { color: #e0f2df; }
+    :root[data-effective-theme="dark"] .cvc-callout,
+    :root[data-effective-theme="dark"] .loading-state { color: #fff1bc; background: #3d351d; }
+    :root[data-effective-theme="dark"] .combo-count,
+    :root[data-effective-theme="dark"] .badge.online-sync,
+    :root[data-effective-theme="dark"] .receiving-companion-list { color: #add8ff; }
+    :root[data-effective-theme="dark"] details summary { color: #add8ff; }
+    :root[data-effective-theme="dark"] .glossary-item dt { color: #ffc482; }
+    @media (max-width: 720px) {
+      .course-name span { display: block; margin: 3px 0 0; }
+      .cvc-link { min-height: 44px; }
+    }
   </style>
 </head>
 <body>
   <div class="site-shell">
     <header>
       <div class="utility-bar">
-        <span class="utility-name">FreeCreds.pages.dev &bull; California Edition</span>
+        <span class="utility-name">FREECREDS &bull; California Edition</span>
         <nav class="utility-links" aria-label="Site links">
           <a href="#search-form">Course Finder</a>
           <a href="#site-help">Help</a>
@@ -624,7 +651,10 @@
 
       <div class="brand-row">
         <div class="brand-lockup">
-          <h1><img class="brand-wordmark" src="freecreds-wordmark.png" width="469" height="49" alt="FreeCreds.pages.dev"></h1>
+          <h1>
+            <img class="brand-wordmark logo-light" src="freecreds-wordmark.png" width="530" height="85" alt="FREECREDS">
+            <img class="brand-wordmark logo-dark" src="freecreds-wordmark-dark.png" width="530" height="85" alt="FREECREDS">
+          </h1>
           <p class="brand-subtitle">California Transfer Course Finder</p>
         </div>
         <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle dark mode">
@@ -639,7 +669,7 @@
       <div class="tagline-bar">SAVE TIME &bull; FIND CLASSES &bull; GET CREDIT</div>
       <div class="status-strip" aria-live="polite">
         <span class="status-icon" aria-hidden="true">&#8635;</span>
-        <strong>LAST UPDATED:</strong>
+        <strong>DATA REFRESH:</strong>
         <span id="assist-updated" class="update-time">ASSIST: loading...</span>
         <span class="status-separator" aria-hidden="true">|</span>
         <span id="cvc-updated" class="update-time">CVC: loading...</span>
@@ -662,7 +692,7 @@
           <div class="panel-body">
             <ul class="quick-list">
               <li>Start with your university.</li>
-              <li>Standalone matches are safest.</li>
+              <li>Check required companion courses.</li>
               <li>Verify before you enroll.</li>
             </ul>
           </div>
@@ -699,18 +729,21 @@
 
         <section class="form-section filter-row" aria-label="Search options">
           <span class="section-label"><span class="step-number">2</span>Fine-tune your search</span>
-          <fieldset class="term-filter-row">
-            <legend>Check online class offerings <span class="muted">(optional)</span></legend>
-            <p class="filter-hint">Choose one or more upcoming terms. Leave all unchecked to search articulations only.</p>
+          <fieldset class="search-mode">
+            <legend>Show me</legend>
+            <label><input type="radio" name="search-mode" id="all-matches" value="all" checked> All transfer matches</label>
+            <label><input type="radio" name="search-mode" id="online-matches" value="online"> Only online listings for selected terms</label>
+          </fieldset>
+          <fieldset id="online-options" class="term-filter-row" hidden>
+            <legend>Choose one or more terms</legend>
+            <p class="filter-hint">Results must have an online listing in at least one selected term. Listings do not confirm open seats.</p>
             <div id="term-filter" class="term-options">
               <span class="term-loading">Loading terms...</span>
             </div>
+            <label class="async-option"><input type="checkbox" id="async-only" disabled> Async online only</label>
           </fieldset>
-
           <div class="checkbox-filter-row">
-            <label><input type="checkbox" id="standalone-only" checked> Standalone equivalents only</label>
-            <label><input type="checkbox" id="combine-bundles" checked> Group equivalent combinations</label>
-            <label><input type="checkbox" id="async-only" disabled> Async online only</label>
+            <label><input type="checkbox" id="standalone-only" checked> Only matches requiring one course</label>
           </div>
 
           <details id="site-help" class="glossary">
@@ -750,7 +783,8 @@
         </div>
       </form>
 
-      <div id="output"></div>
+      <p id="search-status" class="sr-only" role="status" aria-atomic="true"></p>
+      <section id="output" tabindex="-1" aria-label="Search results"></section>
     </main>
 
     <footer class="footer">
