@@ -1,25 +1,30 @@
 import { createCombo } from "./combobox.js";
 import { el } from "./dom.js";
 import { initThemeToggle } from "./theme.js";
-import { cvcSourceHref, dedupeBundleRows, renderSourceLabel } from "./ui-logic.js";
+import { actionButton, renderResults } from "./results.js";
 
 const uniInput = document.getElementById("uni-input");
 const uniList = document.getElementById("uni-list");
 const courseInput = document.getElementById("course-input");
 const courseList = document.getElementById("course-list");
 const standaloneCheck = document.getElementById("standalone-only");
-const combineBundlesCheck = document.getElementById("combine-bundles");
+const onlineMode = document.getElementById("online-matches");
+const allMode = document.getElementById("all-matches");
+const onlineOptions = document.getElementById("online-options");
+const searchStatus = document.getElementById("search-status");
 const termFilter = document.getElementById("term-filter");
 const asyncCheck = document.getElementById("async-only");
 const form = document.getElementById("search-form");
 const output = document.getElementById("output");
 const assistUpdated = document.getElementById("assist-updated");
 const cvcUpdated = document.getElementById("cvc-updated");
-let lastResultsData = null;
+let cvcRefresh = "CVC refresh date unavailable";
 let courseRequestController = null;
 let searchRequestController = null;
 
 function showOutput(className, message) {
+  searchStatus.textContent = message;
+  output.setAttribute("aria-busy", String(className.includes("loading-state")));
   const children = [];
   if (className.includes("loading-state")) {
     children.push(el("span", { class: "spinner", "aria-hidden": "true" }));
@@ -43,10 +48,10 @@ async function loadTerms() {
 }
 
 function formatRefreshTime(value) {
-  if (!value) return "not recorded yet";
+  if (!value) return "refresh date unavailable";
   const timestamp = new Date(value);
   if (Number.isNaN(timestamp.getTime())) return "unavailable";
-  return new Intl.DateTimeFormat(undefined, {
+  const formatted = new Intl.DateTimeFormat(undefined, {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -54,6 +59,8 @@ function formatRefreshTime(value) {
     minute: "2-digit",
     timeZoneName: "short",
   }).format(timestamp);
+  const days = Math.max(0, Math.floor((Date.now() - timestamp.getTime()) / 86400000));
+  return `${formatted} (${days === 0 ? "today" : `${days} ${days === 1 ? "day" : "days"} ago`})`;
 }
 
 async function loadDataStatus() {
@@ -63,20 +70,35 @@ async function loadDataStatus() {
     const { updated_at: updatedAt } = await res.json();
     assistUpdated.textContent = `ASSIST: ${formatRefreshTime(updatedAt?.assist)}`;
     cvcUpdated.textContent = `CVC: ${formatRefreshTime(updatedAt?.cvc)}`;
+    cvcRefresh = updatedAt?.cvc
+      ? `CVC listings last checked ${formatRefreshTime(updatedAt.cvc)}`
+      : "CVC refresh date unavailable";
   } catch {
     assistUpdated.textContent = "ASSIST: unavailable";
     cvcUpdated.textContent = "CVC: unavailable";
   }
 }
 
-// Async-only is only meaningful when the user has opted into offering checks.
-// Start disabled; enable once a term is picked. Clearing the term unchecks + disables.
-function syncAsyncToggle() {
-  const hasTerm = !!termFilter.querySelector('input[name="term"]:checked');
+function syncOnlineOptions() {
+  onlineOptions.hidden = !onlineMode.checked;
+  const hasTerm = onlineMode.checked && !!termFilter.querySelector('input[name="term"]:checked');
   asyncCheck.disabled = !hasTerm;
   if (!hasTerm) asyncCheck.checked = false;
 }
-termFilter.addEventListener("change", syncAsyncToggle);
+termFilter.addEventListener("change", syncOnlineOptions);
+onlineMode.addEventListener("change", syncOnlineOptions);
+allMode.addEventListener("change", syncOnlineOptions);
+
+function invalidateResults() {
+  searchRequestController?.abort();
+  searchRequestController = null;
+  output.removeAttribute("aria-busy");
+  if (output.hasChildNodes()) {
+    output.replaceChildren();
+    searchStatus.textContent = "Search options changed. Search again to update results.";
+  }
+}
+form.addEventListener("change", invalidateResults);
 
 const uniCombo = createCombo({
   input: uniInput,
@@ -93,6 +115,7 @@ const uniCombo = createCombo({
   displayText: (u) => `${u.name} (${u.code.trim()})`,
   exactShortcuts: (u) => [u.code.trim(), u.name],
   onSelect: (u) => loadCoursesForUniversity(u.code.trim()),
+  onInput: () => loadCoursesForUniversity(null),
 });
 
 const courseCombo = createCombo({
@@ -109,9 +132,12 @@ const courseCombo = createCombo({
   ],
   displayText: (c) => `${c.prefix} ${c.number}: ${c.title}`,
   exactShortcuts: (c) => [`${c.prefix} ${c.number}`, `${c.prefix}${c.number}`],
+  onInput: invalidateResults,
+  onSelect: invalidateResults,
 });
 
 async function loadUniversities() {
+  invalidateResults();
   uniCombo.setEnabled(false, "Loading universities…");
   let data;
   try {
@@ -120,12 +146,13 @@ async function loadUniversities() {
     data = await res.json();
   } catch {
     uniCombo.setEnabled(false, "Universities unavailable");
-    showOutput("error", "Failed to load universities. Please try again later.");
+    showOutput("error", "Universities could not be loaded. Check your connection and retry.");
+    output.appendChild(actionButton("Retry loading universities", loadUniversities));
     return;
   }
   const { universities } = data;
   if (!universities.length) {
-    uniCombo.setEnabled(false, "(no data; run ingester)");
+    uniCombo.setEnabled(false, "No universities available");
     return;
   }
   uniCombo.setItems(universities);
@@ -133,6 +160,7 @@ async function loadUniversities() {
 }
 
 async function loadCoursesForUniversity(code) {
+  invalidateResults();
   courseRequestController?.abort();
   courseRequestController = null;
   if (!code) {
@@ -154,8 +182,11 @@ async function loadCoursesForUniversity(code) {
     data = await res.json();
   } catch (error) {
     if (error?.name === "AbortError") return;
-    if (courseRequestController === controller) courseRequestController = null;
+    if (courseRequestController !== controller) return;
+    courseRequestController = null;
     courseCombo.setEnabled(false, "Failed to load courses");
+    showOutput("error", "Courses could not be loaded. Check your connection and retry.");
+    output.appendChild(actionButton("Retry loading courses", () => loadCoursesForUniversity(code)));
     return;
   }
   if (courseRequestController !== controller) return;
@@ -165,215 +196,22 @@ async function loadCoursesForUniversity(code) {
   courseCombo.setEnabled(true, `Search ${courses.length} courses (e.g. "math 150")`);
 }
 
-function renderCourse(c) {
-  const hasMin = c.min_units != null;
-  const hasMax = c.max_units != null;
-  let units = "";
-  if (hasMin && hasMax) {
-    units = c.min_units === c.max_units ? `${c.min_units}` : `${c.min_units}-${c.max_units}`;
-  } else if (hasMin || hasMax) {
-    units = `${hasMin ? c.min_units : c.max_units}`;
-  }
-  const unitsText = units ? ` (${units} units)` : "";
-  return `${c.prefix} ${c.number} - ${c.title}${unitsText}`;
+function showAllMatches() {
+  allMode.checked = true;
+  syncOnlineOptions();
+  runSearch();
 }
 
-function renderYearNote(row) {
-  if (!row.academic_year) return null;
-  return el("div", { class: "source-note" }, `Agreement Year: ${row.academic_year}`);
-}
-
-// Source caption shown under the articulating course. Only surfaces when
-// the path is major-specific (no AllDepartments backing); default/generic
-// paths get no caption at all.
-function renderSourceNote(sources) {
-  const { text, title } = renderSourceLabel(sources);
-  if (!text) return null;
-  const note = el("div", { class: "source-note" }, text);
-  if (title) note.setAttribute("title", title);
-  return note;
-}
-
-function renderOfferingBadge(status, sourceRef = null, termLabel = "") {
-  const badge = status === "async_online"
-    ? { className: "async-online", label: "async online" }
-    : status === "online_sync"
-      ? { className: "online-sync", label: "online sync" }
-      : { className: "unknown", label: "unknown" };
-  const href = cvcSourceHref(sourceRef);
-  if (!href) return el("span", { class: `badge ${badge.className}` }, badge.label);
-
-  const context = termLabel ? ` for ${termLabel}` : "";
-  return el("a", {
-    class: `badge offering-link ${badge.className}`,
-    href,
-    target: "_blank",
-    rel: "noopener",
-    title: `View this class on CVC${context}`,
-    "aria-label": `${badge.label}${context}: view class on CVC (opens in a new tab)`,
-  }, `${badge.label} \u2197`);
-}
-
-function formatTermScope(terms) {
-  const labels = terms.map((term) => term.label);
-  if (labels.length === 0) return "any upcoming term";
-  if (labels.length === 1) return labels[0];
-  if (labels.length === 2) return `${labels[0]} or ${labels[1]}`;
-  return `${labels.slice(0, -1).join(", ")}, or ${labels.at(-1)}`;
-}
-
-function renderOfferingTerms(terms, fallbackStatus) {
-  if (!terms || terms.length === 0) return renderOfferingBadge(fallbackStatus);
-  return el("ul", { class: "offering-list" }, terms.map((term) => el("li", {}, [
-    el("span", { class: "offering-term" }, term.label),
-    renderOfferingBadge(term.status, term.source_ref, term.label),
-  ])));
-}
-
-function renderResults(data, { animateSummary = true } = {}) {
-  output.replaceChildren();
-  const q = data.query;
-  const selectedTerms = Array.isArray(q.terms) ? q.terms : (q.term ? [q.term] : []);
-  const termScope = formatTermScope(selectedTerms);
-  const headerMeta = selectedTerms.length
-    ? `${q.university.name}: ${renderCourse(q.course)} - ${termScope}`
-    : `${q.university.name}: ${renderCourse(q.course)}`;
-  output.appendChild(el("div", { class: "meta" }, headerMeta));
-
-  const bundleFilter = combineBundlesCheck ? combineBundlesCheck.checked : true;
-  const { rows: visibleResults, hidden: hiddenBundleRows } = bundleFilter
-    ? dedupeBundleRows(data.results.map(row => ({ ...row })))
-    : { rows: data.results, hidden: 0 };
-  const n = visibleResults.length;
-  let headline;
-  if (q.async_only) {
-    headline = `Articulating colleges offering this course async online in ${termScope} (${n})`;
-  } else if (selectedTerms.length) {
-    headline = `Articulating colleges offering this course online in ${termScope} (${n})`;
-  } else {
-    headline = `Articulating community colleges (${n})`;
-  }
-  output.appendChild(el(
-    "div",
-    { class: "result-header" + (animateSummary ? " enter-result-summary" : "") },
-    [el("h2", {}, headline)],
-  ));
-  output.appendChild(el("div", { class: "cvc-callout" }, [
-    "Course availability changes frequently. ",
-    el("a", {
-      href: "https://www.cvc.edu/",
-      target: "_blank",
-      rel: "noopener",
-    }, "Check CVC for current availability"),
-    ".",
-  ]));
-  if (hiddenBundleRows) {
-    output.appendChild(el(
-      "div",
-      { class: "meta" },
-      `Combined ${hiddenBundleRows} duplicate AND-bundle ${hiddenBundleRows === 1 ? "row" : "rows"}.`,
-    ));
-  }
-
-  const showOfferingCols = selectedTerms.length > 0;
-
-  if (!visibleResults.length) {
-    let msg;
-    if (q.async_only) {
-      msg = `No colleges confirmed to offer this course as async online in ${termScope}.`;
-    } else if (selectedTerms.length) {
-      msg = `No colleges confirmed to offer this course online in ${termScope}. `
-        + `Clear the selected terms to see all articulations, or check CVC for current availability.`;
-    } else {
-      msg = "No articulations found for this course.";
-    }
-    output.appendChild(el("div", { class: "meta" }, msg));
-  } else {
-    const table = el("table");
-    const headerCells = [
-      el("th", {}, "Community College"),
-      el("th", {}, "Articulating Course"),
-      el("th", {}, "Type"),
-    ];
-    if (showOfferingCols) {
-      headerCells.push(el("th", {}, "Online availability"));
-    }
-    table.appendChild(el("thead", {}, el("tr", {}, headerCells)));
-    const tbody = el("tbody");
-    for (const r of visibleResults) {
-      const ccChildren = [
-        r.cc_name,
-        el("div", { class: "meta" }, r.cc_code),
-      ];
-      const yearNote = renderYearNote(r);
-      if (yearNote) ccChildren.push(yearNote);
-      const cc = el("td", { "data-label": "Community College" }, ccChildren);
-
-      const courseCell = el("td", { "data-label": "Articulating Course" });
-      courseCell.appendChild(document.createTextNode(renderCourse(r.cc_course)));
-      if (!r.is_standalone && r.companion_courses.length) {
-        const list = el("ul", { class: "companion-list" });
-        list.appendChild(el("li", {}, "Must be taken with:"));
-        for (const comp of r.companion_courses) {
-          list.appendChild(el("li", {}, renderCourse(comp)));
-        }
-        courseCell.appendChild(list);
-      }
-      if (r.receiving_companion_courses && r.receiving_companion_courses.length) {
-        const list = el("ul", { class: "receiving-companion-list" });
-        list.appendChild(el("li", {}, "Also yields credit for:"));
-        for (const comp of r.receiving_companion_courses) {
-          list.appendChild(el("li", {}, renderCourse(comp)));
-        }
-        courseCell.appendChild(list);
-      }
-      const sourceNote = renderSourceNote(r.sources || []);
-      if (sourceNote) courseCell.appendChild(sourceNote);
-
-      const badge = r.is_standalone
-        ? el("span", { class: "badge standalone" }, "standalone")
-        : el("span", { class: "badge bundle" }, "AND bundle");
-      const type = el("td", { "data-label": "Type" }, badge);
-
-      const cells = [cc, courseCell, type];
-      if (showOfferingCols) {
-        cells.push(el(
-          "td",
-          { "data-label": "Online availability" },
-          renderOfferingTerms(r.offering_terms, r.offering_status),
-        ));
-      }
-      const row = el("tr", {}, cells);
-      tbody.appendChild(row);
-    }
-    table.appendChild(tbody);
-    output.appendChild(table);
-  }
-
-  if (data.no_articulation.length) {
-    const details = el("details");
-    details.appendChild(el(
-      "summary",
-      {},
-      `${data.no_articulation.length} colleges with no articulation on record`,
-    ));
-    const list = el("div", { class: "no-art-list" });
-    for (const n of data.no_articulation) {
-      list.appendChild(el(
-        "div",
-        { class: "no-art-item" },
-        `${n.cc_name} (${n.cc_code}): ${n.reason}`,
-      ));
-    }
-    details.appendChild(list);
-    output.appendChild(details);
-  }
+function revealResults() {
+  output.focus({ preventScroll: true });
+  output.scrollIntoView({ block: "start" });
 }
 
 async function runSearch() {
   const uni = uniCombo.tryPromoteTypedSelection();
   if (!uni) {
     showOutput("error", "Pick a university from the list first.");
+    uniInput.focus();
     return;
   }
   const code = uni.code.trim();
@@ -381,6 +219,7 @@ async function runSearch() {
   const course = courseCombo.tryPromoteTypedSelection();
   if (!course) {
     showOutput("error", "Pick a course from the list first.");
+    courseInput.focus();
     return;
   }
 
@@ -390,11 +229,17 @@ async function runSearch() {
     number: course.number,
   });
   if (standaloneCheck.checked) params.set("standalone_only", "true");
-  for (const input of termFilter.querySelectorAll('input[name="term"]:checked')) {
-    params.append("term", input.value);
+  if (onlineMode.checked) {
+    const terms = [...termFilter.querySelectorAll('input[name="term"]:checked')];
+    if (!terms.length) {
+      showOutput("error", "Choose at least one term, or switch to All transfer matches.");
+      output.appendChild(actionButton("Show all transfer matches", showAllMatches));
+      revealResults();
+      return;
+    }
+    for (const input of terms) params.append("term", input.value);
+    if (asyncCheck.checked) params.set("async_only", "true");
   }
-  if (asyncCheck.checked) params.set("async_only", "true");
-  lastResultsData = null;
   showOutput("meta loading-state", "Searching...");
   searchRequestController?.abort();
   const controller = new AbortController();
@@ -407,13 +252,18 @@ async function runSearch() {
     data = await res.json();
   } catch (error) {
     if (error?.name === "AbortError") return;
-    if (searchRequestController === controller) searchRequestController = null;
-    showOutput("error", "Search failed. Please try again.");
+    if (searchRequestController !== controller) return;
+    searchRequestController = null;
+    showOutput("error", "Search failed. Check your connection and retry.");
+    output.appendChild(actionButton("Retry search", runSearch));
+    revealResults();
     return;
   }
   if (searchRequestController !== controller) return;
   searchRequestController = null;
+  output.removeAttribute("aria-busy");
   if (!res.ok) {
+    searchStatus.textContent = "Search failed. Review the error below.";
     const err = el("div", { class: "error" }, data.error || data.detail || "Error");
     output.replaceChildren();
     output.appendChild(err);
@@ -426,18 +276,19 @@ async function runSearch() {
       }
       output.appendChild(list);
     }
+    revealResults();
     return;
   }
-  lastResultsData = data;
-  renderResults(data);
+  searchStatus.textContent = renderResults(output, data, {
+    cvcRefresh,
+    standaloneOnly: standaloneCheck.checked,
+    showAll: showAllMatches,
+    includeCombinations: () => { standaloneCheck.checked = false; runSearch(); },
+  });
+  revealResults();
 }
 
 form.addEventListener("submit", (e) => { e.preventDefault(); runSearch(); });
-if (combineBundlesCheck) {
-  combineBundlesCheck.addEventListener("change", () => {
-    if (lastResultsData) renderResults(lastResultsData, { animateSummary: false });
-  });
-}
 
 loadUniversities();
 loadTerms();

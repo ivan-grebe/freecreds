@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 describe("frontend browser smoke test", () => {
   beforeEach(() => {
+    vi.resetModules();
     const html = readFileSync(resolve("src/frontend/index.html"), "utf8")
       .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
     document.open();
@@ -33,8 +34,74 @@ describe("frontend browser smoke test", () => {
           ],
         }), { status: 200 });
       }
+      if (url.startsWith("/api/courses?")) {
+        return Response.json({ courses: [{ prefix: "MATH", number: "170A", title: "Mathematical Structures I" }] });
+      }
+      if (url.startsWith("/api/reverse?")) {
+        const params = new URL(url, "https://example.test").searchParams;
+        return Response.json({
+          query: {
+            university: { name: "Cal State Fullerton", code: "CSUFULL" },
+            course: { prefix: "MATH", number: "170A", title: "Mathematical Structures I" },
+            terms: params.has("term") ? [{ code: "FA26", label: "Fall 2026" }] : [],
+            async_only: params.has("async_only"),
+          },
+          results: [], no_articulation: [],
+        });
+      }
       return new Response(JSON.stringify({ error: "unexpected request" }), { status: 404 });
     }));
+  });
+
+  async function chooseCourse() {
+    await import("../../src/frontend/script.js");
+    const university = document.querySelector<HTMLInputElement>("#uni-input")!;
+    await vi.waitFor(() => expect(university.disabled).toBe(false));
+    university.focus();
+    university.value = "CSUFULL";
+    university.dispatchEvent(new Event("input", { bubbles: true }));
+    university.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    const course = document.querySelector<HTMLInputElement>("#course-input")!;
+    await vi.waitFor(() => expect(course.disabled).toBe(false));
+    course.focus();
+    course.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    return { university, course };
+  }
+
+  function search() {
+    document.querySelector("#search-form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  }
+
+  it("removes online restrictions when recovering from an empty online search", async () => {
+    await chooseCourse();
+    document.querySelector<HTMLInputElement>("#online-matches")!.click();
+    document.querySelector<HTMLInputElement>('#term-filter input[value="FA26"]')!.click();
+    document.querySelector<HTMLInputElement>("#async-only")!.click();
+    search();
+    await vi.waitFor(() => expect(document.querySelector("#output h2")).not.toBeNull());
+    expect(String(vi.mocked(fetch).mock.calls.at(-1)?.[0])).toContain("async_only=true");
+    const showAll = [...document.querySelectorAll<HTMLButtonElement>("#output button")]
+      .find(button => button.textContent === "Show all transfer matches")!;
+    showAll.click();
+    await vi.waitFor(() => expect(document.querySelector("#output h2")).not.toBeNull());
+    const request = new URL(String(vi.mocked(fetch).mock.calls.at(-1)?.[0]), "https://example.test");
+    expect(request.searchParams.has("term")).toBe(false);
+    expect(request.searchParams.has("async_only")).toBe(false);
+    expect(document.activeElement?.id).toBe("output");
+  });
+
+  it("clears the old course when the university is edited and closes its list on Tab", async () => {
+    const { university, course } = await chooseCourse();
+    university.focus();
+    university.value = "Fullerton";
+    university.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(course.value).toBe("");
+    expect(course.disabled).toBe(true);
+    const activeId = university.getAttribute("aria-activedescendant");
+    expect(document.getElementById(activeId!)?.getAttribute("aria-selected")).toBe("true");
+    university.blur();
+    expect(university.getAttribute("aria-expanded")).toBe("false");
+    expect(university.hasAttribute("aria-activedescendant")).toBe(false);
   });
 
   it("boots and populates current terms", async () => {
