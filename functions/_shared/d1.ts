@@ -5,12 +5,6 @@ export async function allRows<T extends Record<string, unknown>>(
   return results || [];
 }
 
-export async function firstRow<T extends Record<string, unknown>>(
-  statement: D1PreparedStatement,
-): Promise<T | null> {
-  return await statement.first<T>();
-}
-
 export function placeholders(count: number): string {
   if (!Number.isInteger(count) || count <= 0) {
     throw new Error(`Invalid placeholder count: ${count}`);

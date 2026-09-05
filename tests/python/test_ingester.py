@@ -1,12 +1,52 @@
 """Tests for ingestion command failure signaling."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
 
 from freecreds import db, ingester
 from freecreds.parser import CourseRef
+
+
+def test_ingestion_keeps_bundles_and_cross_listed_reverse_results():
+    conn = db.connect(Path(":memory:"))
+    db.init_db(conn)
+    university_id = db.upsert_institution(conn, 100, "UNI", "University", 0, 0)
+    college_id = db.upsert_institution(conn, 200, "CC", "College", 2, 0)
+    fixture = Path(__file__).parent / "fixtures/allDepartments_sample.json"
+    payload = json.loads(fixture.read_text(encoding="utf-8"))
+    departments = json.loads(payload["articulations"])
+    first = departments[0]["articulations"][0]
+    first["visibleCrossListedCourses"] = [{
+        **first["course"], "courseIdentifierParentId": 1004, "prefix": "ENGR",
+    }]
+    payload["articulations"] = json.dumps(departments)
+
+    for _ in range(2):
+        ingester._ingest_one_agreement(conn, payload, university_id, college_id, 76, {})
+
+    rows = conn.execute("""
+        SELECT receiving.prefix, receiving.number, sending.number,
+               ri.is_standalone_equivalent, ri.companion_course_ids
+        FROM reverse_index ri
+        JOIN courses receiving ON receiving.id = ri.receiving_course_id
+        JOIN courses sending ON sending.id = ri.sending_course_id
+        ORDER BY receiving.prefix, receiving.number, sending.number
+    """).fetchall()
+    courses = dict(conn.execute("SELECT id, number FROM courses"))
+    results = [
+        (*row[:4], [courses[course_id] for course_id in json.loads(row[4])])
+        for row in rows
+    ]
+    assert results == [
+        ("CS", "101", "10", 1, []),
+        ("CS", "201", "20", 0, ["21"]),
+        ("CS", "201", "21", 0, ["20"]),
+        ("ENGR", "101", "10", 1, []),
+    ]
+    conn.close()
 
 
 def test_all_targets_returns_failure_when_any_target_failed(monkeypatch):

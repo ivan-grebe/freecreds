@@ -31,12 +31,9 @@ log = logging.getLogger(__name__)
 
 COUNT_KEYS = (
     "courses",
-    "cross_listings",
     "articulations",
     "with_sending",
     "no_art",
-    "course_groups",
-    "group_members",
     "reverse_rows",
 )
 
@@ -61,10 +58,6 @@ def _elapsed(started_at: float) -> str:
 
 def _format_counts(counts: dict[str, int]) -> str:
     return ", ".join(f"{key}={counts[key]}" for key in COUNT_KEYS if counts.get(key))
-
-
-def _institution_name(inst: dict[str, Any], year_hint: int | None = None) -> str:
-    return institution_display_name(inst, year=year_hint)
 
 
 def _find_all_summary_agreements(
@@ -206,7 +199,7 @@ def _upsert_all_institutions(
             conn,
             assist_id=inst["id"],
             code=(inst.get("code") or "").strip(),
-            name=_institution_name(inst),
+            name=institution_display_name(inst),
             category_int=cat,
             term_type_int=term,
         )
@@ -267,23 +260,6 @@ def _ensure_course(
     return course_id
 
 
-def _persist_cross_listings(
-    conn: sqlite3.Connection,
-    parsed: ParsedArticulation,
-    receiving_id: int,
-    university_id: int,
-    cache: CourseCache,
-    counts: dict[str, int],
-) -> list[int]:
-    alias_ids = []
-    for alias in parsed.cross_listed_receiving:
-        alias_id = _ensure_course(conn, alias, university_id, cache, counts)
-        alias_ids.append(alias_id)
-        if db.insert_cross_listing(conn, receiving_id, alias_id):
-            counts["cross_listings"] += 1
-    return alias_ids
-
-
 def _ensure_sending_courses(
     conn: sqlite3.Connection,
     parsed: ParsedArticulation,
@@ -298,28 +274,6 @@ def _ensure_sending_courses(
         for group in parsed.sending_groups
         for course in group.courses
     }
-
-
-def _persist_course_groups(
-    conn: sqlite3.Connection,
-    articulation_id: int,
-    parsed: ParsedArticulation,
-    sending_ids: dict[int, int],
-    counts: dict[str, int],
-) -> None:
-    for group_position, group in enumerate(parsed.sending_groups):
-        group_id = db.insert_course_group(
-            conn, articulation_id, group.conjunction, group_position
-        )
-        counts["course_groups"] += 1
-        for course_position, course in enumerate(group.courses):
-            db.insert_group_member(
-                conn,
-                group_id,
-                sending_ids[course.course_identifier_parent_id],
-                course_position,
-            )
-            counts["group_members"] += 1
 
 
 def _persist_reverse_rows(
@@ -375,9 +329,10 @@ def _ingest_one_agreement(
         row_source = (
             f"Major: {parsed.source_major}" if parsed.source_major else source_context
         )
-        alias_ids = _persist_cross_listings(
-            conn, parsed, recv_db_id, university_db_id, course_cache, counts
-        )
+        alias_ids = [
+            _ensure_course(conn, alias, university_db_id, course_cache, counts)
+            for alias in parsed.cross_listed_receiving
+        ]
         sending_db_ids = _ensure_sending_courses(
             conn, parsed, cc_db_id, course_cache, counts
         )
@@ -399,11 +354,8 @@ def _ingest_one_agreement(
         counts["with_sending"] += 1
 
         if art_id is None:
-            # Duplicate articulation (course in multiple departments) — skip
-            # the group+reverse-index inserts; they already exist.
             continue
 
-        _persist_course_groups(conn, art_id, parsed, sending_db_ids, counts)
         receiving_sibling_ids = [
             _ensure_course(conn, sibling, university_db_id, course_cache, counts)
             for sibling in parsed.receiving_siblings
@@ -503,7 +455,7 @@ def _ingest_university_from_context(
     university = find_institution_by_code(institutions, university_code)
     uni_assist_id = university["id"]
     uni_db_id = id_map[uni_assist_id]
-    log.info("Target: %s (assist_id=%d)", _institution_name(university), uni_assist_id)
+    log.info("Target: %s (assist_id=%d)", institution_display_name(university), uni_assist_id)
 
     year_id = latest_academic_year_id(client, uni_assist_id)
     log.info("Academic year ID: %d", year_id)

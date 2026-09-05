@@ -9,7 +9,6 @@ import type {
 import {
   allRows,
   chunks,
-  firstRow,
   placeholders,
   uniqueNumbers,
 } from "../_shared/d1";
@@ -183,21 +182,19 @@ async function getReceivingCourse(
   query: ReverseQuery,
   yearId: number | null,
 ): Promise<ReceivingCourseRow | Response> {
-  const course = await firstRow<ReceivingCourseRow>(
-    env.DB.prepare(`
-      SELECT id, prefix, number, title, min_units, max_units
-      FROM courses c
-      WHERE c.institution_id = ? AND c.prefix = ? COLLATE NOCASE
-        AND c.number = ? COLLATE NOCASE
-        AND c.is_terminated = 0
-        AND EXISTS (
-          SELECT 1 FROM articulations a
-          WHERE a.receiving_course_id = c.id
-            AND a.university_id = ?
-            AND a.academic_year_id = ?
-        )
-    `).bind(uni.id, query.prefix, query.number, uni.id, yearId),
-  );
+  const course = await env.DB.prepare(`
+    SELECT id, prefix, number, title, min_units, max_units
+    FROM courses c
+    WHERE c.institution_id = ? AND c.prefix = ? COLLATE NOCASE
+      AND c.number = ? COLLATE NOCASE
+      AND c.is_terminated = 0
+      AND EXISTS (
+        SELECT 1 FROM articulations a
+        WHERE a.receiving_course_id = c.id
+          AND a.university_id = ?
+          AND a.academic_year_id = ?
+      )
+  `).bind(uni.id, query.prefix, query.number, uni.id, yearId).first<ReceivingCourseRow>();
   if (course) {
     return course;
   }
@@ -484,21 +481,17 @@ function reverseCacheKey(query: ReverseQuery): string {
 }
 
 export async function buildReverseResponse(env: Env, query: ReverseQuery): Promise<Response> {
-  const uni = await firstRow<InstitutionRow>(
-    env.DB.prepare(
-      "SELECT id, code, name FROM institutions WHERE code = ? COLLATE NOCASE",
-    ).bind(query.university),
-  );
+  const uni = await env.DB.prepare(
+    "SELECT id, code, name FROM institutions WHERE code = ? COLLATE NOCASE",
+  ).bind(query.university).first<InstitutionRow>();
   if (!uni) {
     return error(404, `Unknown university code ${JSON.stringify(query.university)}`);
   }
 
-  const year = await firstRow<{ year_id: number | null }>(
-    env.DB.prepare(`
-      SELECT MAX(academic_year_id) AS year_id FROM articulations
-      WHERE university_id = ?
-    `).bind(uni.id),
-  );
+  const year = await env.DB.prepare(`
+    SELECT MAX(academic_year_id) AS year_id FROM articulations
+    WHERE university_id = ?
+  `).bind(uni.id).first<{ year_id: number | null }>();
   const yearId = year?.year_id ?? null;
 
   const course = await getReceivingCourse(env, uni, query, yearId);

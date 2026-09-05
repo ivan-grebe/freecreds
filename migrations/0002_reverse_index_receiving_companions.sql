@@ -1,3 +1,0 @@
--- Compatibility migration retained for databases that recorded this version.
--- receiving_companion_course_ids is already part of 0001_schema.sql, so a
--- fresh database requires no additional alteration here.

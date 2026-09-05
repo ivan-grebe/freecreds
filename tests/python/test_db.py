@@ -7,21 +7,18 @@ import pytest
 from freecreds import db
 
 
-def test_fresh_database_records_and_reuses_sql_migrations():
+def test_database_initialization_is_idempotent():
     conn = sqlite3.connect(":memory:")
 
     db.init_db(conn)
+    db.upsert_institution(conn, 1, "TEST", "Test University", 0, 0)
+    conn.commit()
     db.init_db(conn)
 
-    applied = [
-        row[0]
-        for row in conn.execute(
-            f"SELECT name FROM {db.LOCAL_MIGRATIONS_TABLE} ORDER BY name"
-        )
+    assert conn.execute("SELECT code, name FROM institutions").fetchall() == [
+        ("TEST", "Test University")
     ]
-    assert applied == [migration.name for migration in sorted(db.MIGRATIONS_DIR.glob("*.sql"))]
-    columns = [row[1] for row in conn.execute("PRAGMA table_info(institutions)")]
-    assert "schedule_url" not in columns
+    conn.close()
 
 
 def test_untracked_database_must_be_regenerated():
@@ -29,8 +26,8 @@ def test_untracked_database_must_be_regenerated():
     conn.executescript((db.MIGRATIONS_DIR / "0001_schema.sql").read_text(encoding="utf-8"))
     conn.execute(
         """INSERT INTO institutions
-             (assist_id, code, name, category, term_type, schedule_url)
-           VALUES (1, 'TEST', 'Test University', 'CSU', 'Semester', 'https://old.test')"""
+             (assist_id, code, name, category, term_type)
+           VALUES (1, 'TEST', 'Test University', 'CSU', 'Semester')"""
     )
     conn.commit()
 

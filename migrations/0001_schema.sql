@@ -4,8 +4,7 @@ CREATE TABLE IF NOT EXISTS institutions (
   code TEXT NOT NULL,
   name TEXT NOT NULL,
   category TEXT NOT NULL CHECK(category IN ('CCC','CSU','UC','AICCU')),
-  term_type TEXT NOT NULL,
-  schedule_url TEXT
+  term_type TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_inst_code ON institutions(code);
 CREATE INDEX IF NOT EXISTS idx_inst_code_nocase
@@ -45,20 +44,6 @@ CREATE INDEX IF NOT EXISTS idx_art_receiving_year_cc ON articulations(
   receiving_course_id, academic_year_id, sending_cc_id
 );
 
-CREATE TABLE IF NOT EXISTS articulation_course_groups (
-  id INTEGER PRIMARY KEY,
-  articulation_id INTEGER NOT NULL REFERENCES articulations(id),
-  conjunction TEXT NOT NULL CHECK(conjunction IN ('And','Or','Single')),
-  position INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS articulation_group_members (
-  id INTEGER PRIMARY KEY,
-  group_id INTEGER NOT NULL REFERENCES articulation_course_groups(id),
-  sending_course_id INTEGER NOT NULL REFERENCES courses(id),
-  position INTEGER NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS reverse_index (
   id INTEGER PRIMARY KEY,
   receiving_course_id INTEGER NOT NULL REFERENCES courses(id),
@@ -70,21 +55,11 @@ CREATE TABLE IF NOT EXISTS reverse_index (
   source_context TEXT NOT NULL DEFAULT 'AllDepartments',
   receiving_companion_course_ids TEXT
 );
-CREATE INDEX IF NOT EXISTS idx_reverse ON reverse_index(
-  receiving_course_id, academic_year_id
-);
 CREATE INDEX IF NOT EXISTS idx_reverse_receiving_year_cc ON reverse_index(
   receiving_course_id, academic_year_id, sending_cc_id
 );
 CREATE INDEX IF NOT EXISTS idx_reverse_sending ON reverse_index(
   sending_cc_id, academic_year_id
-);
-
-CREATE TABLE IF NOT EXISTS cross_listings (
-  id INTEGER PRIMARY KEY,
-  primary_course_id INTEGER NOT NULL REFERENCES courses(id),
-  alias_course_id INTEGER NOT NULL REFERENCES courses(id),
-  UNIQUE(primary_course_id, alias_course_id)
 );
 
 CREATE TABLE IF NOT EXISTS terms (
@@ -110,8 +85,6 @@ CREATE TABLE IF NOT EXISTS class_offerings (
   fetched_at TEXT NOT NULL,
   UNIQUE(institution_id, prefix, number, term_id, source_ref)
 );
-CREATE INDEX IF NOT EXISTS idx_offerings_lookup
-  ON class_offerings(institution_id, prefix, number, term_id);
 CREATE INDEX IF NOT EXISTS idx_offerings_course
   ON class_offerings(course_id, term_id);
 CREATE INDEX IF NOT EXISTS idx_offerings_source_term

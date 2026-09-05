@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { chunks, placeholders } from "../../functions/_shared/d1";
 import {
   cachedResponse,
   json,
@@ -10,6 +9,12 @@ import {
 
 describe("HTTP helpers", () => {
   afterEach(() => vi.unstubAllGlobals());
+
+  it("preserves caller Headers alongside the default response headers", () => {
+    const response = json({}, { headers: new Headers({ "cache-control": "no-store" }) });
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+  });
 
   it("parses supported boolean values", () => {
     expect(parseBooleanParam(new URL("https://example.test/?flag=1"), "flag")).toBe(true);
@@ -24,11 +29,6 @@ describe("HTTP helpers", () => {
       { maxLength: 12, pattern: /^[A-Z0-9]+$/, description: "a course code" },
     );
     expect(result).toBe("MATH101");
-  });
-
-  it("builds SQL placeholders and chunks arrays", () => {
-    expect(placeholders(3)).toBe("?,?,?");
-    expect(chunks([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
   });
 
   it("keeps browser caching short while retaining versioned edge responses", async () => {

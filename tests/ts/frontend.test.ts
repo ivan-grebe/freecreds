@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   cvcSourceHref,
   dedupeBundleRows,
-  renderSourceLabel,
 } from "../../src/frontend/ui-logic.js";
 
 describe("frontend result logic", () => {
@@ -35,13 +34,6 @@ describe("frontend result logic", () => {
     expect(result.rows).toHaveLength(1);
     expect(result.rows[0].offering_status).toBe("async_online");
     expect(result.rows[0].sources).toEqual(["AllDepartments", "Major: Mathematics"]);
-  });
-
-  it("renders a concise major-specific source label", () => {
-    expect(renderSourceLabel(["Major: Biology", "Major: Chemistry"])).toEqual({
-      text: "Major-specific: Biology, Chemistry",
-      title: "Biology\nChemistry",
-    });
   });
 
   it("accepts only trusted CVC source links", () => {

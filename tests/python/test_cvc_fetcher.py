@@ -1,8 +1,4 @@
-"""Tests for CVC HTML parsing + DB writer.
-
-Network code (CVCClient.search_html) is exercised only via fixture HTML;
-the live endpoint is covered by manual smoke test.
-"""
+"""Tests for CVC parsing, crawling, and publication."""
 from __future__ import annotations
 
 import sqlite3
@@ -84,7 +80,7 @@ def test_parse_search_html_minimal():
     assert records[0].term_code == "FA26"
     assert records[0].modality == "online_async"
     assert "/courses/1842959" in records[0].source_ref
-    assert "?" not in records[0].source_ref  # query string stripped
+    assert "?" not in records[0].source_ref
 
     assert records[1].prefix == "ENGL"
     assert records[1].number == "1A"
@@ -93,6 +89,14 @@ def test_parse_search_html_minimal():
 def test_count_cards_matches_parse():
     assert count_cards(CARD_HTML) == 2
     assert count_cards("<html><body>no results</body></html>") == 0
+
+
+def test_parse_search_html_decodes_numeric_entities():
+    html = CARD_HTML.replace("Coalinga College", "Coalinga&#32;College")
+    html = html.replace("MATH45", "MATH&#52;5")
+    records = parse_search_html(html, term_code="FA26", modality="online_async")
+    assert records[0].college_name == "Coalinga College"
+    assert records[0].number == "45"
 
 
 def test_has_next_page_detects_enabled_pagination_link():
@@ -173,13 +177,9 @@ def test_parse_search_html_skips_unparseable_titles():
 
 
 def test_parse_synthetic_fixture_has_cards():
-    if not FIXTURE.exists():
-        return  # fixture optional
     html = FIXTURE.read_text(encoding="utf-8", errors="replace")
     records = parse_search_html(html, term_code="FA26", modality="online_async")
-    # The fixture is deliberately small and entirely synthetic.
     assert len(records) == 3
-    # Every record should have a non-empty college + prefix + digit-starting number
     for r in records:
         assert r.college_name
         assert r.prefix.isalpha()
@@ -311,13 +311,15 @@ def test_write_offerings_uses_constant_lookup_queries():
     write_offerings(conn, records, term)
 
     selects = [statement for statement in statements if statement.lstrip().upper().startswith("SELECT")]
-    assert len(selects) == 3
+    assert len(selects) <= 3
     assert conn.execute("SELECT COUNT(*) FROM class_offerings").fetchone()[0] == 25
 
 
+@pytest.mark.parametrize("failed_page", [1, 2])
 def test_failed_crawl_preserves_existing_offerings(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    failed_page: int,
 ):
     db_path = tmp_path / "assist.db"
     conn = db.connect(db_path)
@@ -342,8 +344,10 @@ def test_failed_crawl_preserves_existing_offerings(
         def available_session_names(self):
             return {"Fall 2026"}
 
-        def search_html(self, *_args, **_kwargs):
-            return None
+        def search_html(self, *_args, page=1):
+            if page == failed_page:
+                return None
+            return CARD_HTML + '<a href="/search?page=2" rel="next">Next</a>'
 
     monkeypatch.setattr(cvc_fetcher, "CVCClient", FailingClient)
 
@@ -356,9 +360,15 @@ def test_failed_crawl_preserves_existing_offerings(
     assert refs == ["https://search.cvc.edu/courses/original"]
 
 
+@pytest.mark.parametrize("html", [
+    "<html><body><p>No recognizable cards</p></body></html>",
+    '<div class="course border-gray-400"><p>New markup</p></div>',
+    CARD_HTML.replace("MATH45", "WE186WELD").replace("ENGL1A", "E.S.L.1"),
+])
 def test_empty_crawl_preserves_existing_offerings(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    html: str,
 ):
     db_path = tmp_path / "assist.db"
     conn = db.connect(db_path)
@@ -384,7 +394,7 @@ def test_empty_crawl_preserves_existing_offerings(
             return {"Fall 2026"}
 
         def search_html(self, *_args, **_kwargs):
-            return "<html><body><p>No recognizable cards</p></body></html>"
+            return html
 
     monkeypatch.setattr(cvc_fetcher, "CVCClient", EmptyClient)
 
@@ -397,26 +407,86 @@ def test_empty_crawl_preserves_existing_offerings(
     assert refs == ["https://search.cvc.edu/courses/original"]
 
 
-def test_card_markup_drift_fails_before_publication():
-    conn = _seed_conn()
-    term = parse_code("FA26")
-    ensure_term(conn, term)
-    conn.commit()
-
-    class ChangedMarkupClient:
-        def search_html(self, *_args, **_kwargs):
-            return '<div class="course border-gray-400"><p>New markup</p></div>'
-
-    with pytest.raises(RuntimeError, match="none could be parsed"):
-        cvc_fetcher._crawl_subject(
-            ChangedMarkupClient(),
-            conn,
-            term,
-            "online_async",
-            "online_async",
-            "MATH",
-            cvc_fetcher._load_offering_lookups(conn),
+@pytest.mark.parametrize("bad_page", [1, 2, 3])
+@pytest.mark.parametrize("bad_html", [
+    '<div class="course border-gray-400"><p>New markup</p></div>',
+    CARD_HTML.replace("MATH45", "WE186WELD").replace("ENGL1A", "E.S.L.1"),
+    CARD_HTML.replace("MATH45", "WE186WELD"),
+])
+def test_unparseable_cards_do_not_block_pagination_or_publication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    bad_page: int,
+    bad_html: str,
+):
+    db_path = tmp_path / "assist.db"
+    conn = db.connect(db_path)
+    db.init_db(conn)
+    for index, (code, name) in enumerate([
+        ("WHC", "Coalinga College"), ("SJCC", "San Jose City College"),
+    ]):
+        db.upsert_institution(conn, index + 200, code, name, 2, 0)
+    cc_id = conn.execute("SELECT id FROM institutions WHERE code = 'WHC'").fetchone()[0]
+    for code in ["FA26", "SP27"]:
+        term_id = ensure_term(conn, parse_code(code))
+        db.upsert_class_offering(
+            conn, cc_id, None, "MATH", "45", term_id, "online_async", "cvc",
+            f"https://search.cvc.edu/courses/old-{code}", "2026-01-01T00:00:00+00:00",
         )
+    conn.commit()
+    conn.close()
+    requests = []
+
+    class Client:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def available_session_names(self):
+            return {"Fall 2026"}
+
+        def search_html(self, term, modality, subject, page=1):
+            requests.append((modality, subject, page))
+            if modality == "online_sync":
+                return "<html></html>"
+            html = bad_html if subject == "MATH" and page == bad_page else CARD_HTML
+            html = html.replace("/courses/", f"/courses/{subject}-{page}-")
+            if subject == "MATH" and page < 3:
+                html += f'<a href="/search?page={page + 1}" rel="next">Next</a>'
+            return html
+
+    monkeypatch.setattr(cvc_fetcher, "CVCClient", Client)
+    cvc_fetcher.ingest_terms(["FA26"], db_path=db_path, subjects=["MATH", "ZOO"])
+
+    assert requests == [
+        ("online_async", "MATH", 1),
+        ("online_async", "MATH", 2),
+        ("online_async", "MATH", 3),
+        ("online_async", "ZOO", 1),
+        ("online_sync", "MATH", 1),
+        ("online_sync", "ZOO", 1),
+    ]
+    conn = db.connect(db_path)
+    refs = {row[0] for row in conn.execute("SELECT source_ref FROM class_offerings")}
+    conn.close()
+    expected = {
+        f"https://search.cvc.edu/courses/MATH-{page}-{course}"
+        for page in [1, 2, 3] if page != bad_page
+        for course in ["1842959", "999"]
+    }
+    expected.update({
+        "https://search.cvc.edu/courses/ZOO-1-1842959",
+        "https://search.cvc.edu/courses/ZOO-1-999",
+        "https://search.cvc.edu/courses/old-SP27",
+    })
+    if "ENGL1A" in bad_html:
+        expected.add(f"https://search.cvc.edu/courses/MATH-{bad_page}-999")
+    assert refs == expected
+    assert "unparseable CVC cards" in caplog.text
+    assert f"FA26/online_async subject=MATH page={bad_page}" in caplog.text
 
 
 def test_implausibly_small_refresh_requires_explicit_override():

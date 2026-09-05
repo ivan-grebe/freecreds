@@ -1,58 +1,8 @@
-"""Fetch online-course offerings from CVC Exchange (search.cvc.edu).
+"""Fetch CVC online offerings for the CCC subject prefixes in the ASSIST database.
 
-CVC Exchange is the California Virtual Campus course-finder, powered by
-Quottly. It aggregates fully-online courses across ~112 CCCs — a direct
-match for the async-online filter on our reverse-search results.
-
-## Endpoint — HTML, not JSON
-
-Live discovery (April 2026) confirmed there is **no public JSON API** for
-course results. The autocomplete endpoint `/api/search.json` only returns
-typeahead suggestions. Real course search is rendered as HTML on
-`/search?filter[...]=...&page=N`.
-
-Experimentally (verified April 2026), CVC rejects "show everything"
-queries — `filter[subject]` is a **required** field. Without it the
-response is a landing page with zero course cards. So we drive the
-search one *(term, modality, subject)* triple at a time. Every card
-returned is unambiguously that term + that modality; the card's own
-prefix+number (parsed from its title) determines where it lands in our
-DB, not the subject keyword we searched with.
-
-The subject iteration set is the distinct CCC course prefixes already
-in `data/assist.db` — the only ones we need offering data for, since
-anything that doesn't articulate somewhere won't surface in reverse
-lookups anyway.
-
-Required filters on the search URL (verified empirically April 2026 —
-dropping `search_type` collapses large result sets to ~1 page):
-- `filter[search_type]=open_search`
-- `filter[search_all_universities]=false`
-- `filter[display_home_school]=false`
-- `filter[university_id]=101`
-- `filter[session_names][]=<term label>`         (e.g. "Fall 2026")
-- `filter[delivery_method_subtypes][]=<subtype>` (online_async / online_sync)
-- `filter[subject]=<prefix>`                     (**required** — no subject = no results)
-- `page=N`                                        (1-indexed)
-
-`search_all_universities`, `display_home_school`, and `university_id`
-are part of the required browser-style context. If they are omitted, CVC
-ignores the subject filter and returns a broad all-subject result set.
-
-## Graceful degradation
-
-If CVC is unreachable or its HTML shape changes, this module fails the
-refresh before publishing its staging table. Existing offering data remains
-available, and users can still check CVC directly as a fallback.
-
-## Usage
-
-    python -m freecreds.cvc_fetcher --terms FA26,SP27
-    python -m freecreds.cvc_fetcher --terms FA26 --subjects MATH,ENGL    # quick test
-    python -m freecreds.cvc_fetcher --fixture tests/python/fixtures/cvc_response_sample.html --terms FA26
-
-`--fixture` parses a single saved HTML page (offline mode for testing).
-It treats every card as async; use the live flow in prod.
+Searches require a subject and the browser-style home-school filters below.
+Unparseable cards are skipped; HTTP failures and empty or implausibly small
+crawls abort before replacing existing offerings.
 """
 from __future__ import annotations
 
@@ -65,6 +15,7 @@ import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -85,7 +36,7 @@ MAX_PAGES_PER_QUERY = 1_000  # emergency ceiling if CVC omits its advertised fin
 CVC_HOME_UNIVERSITY_ID = "101"
 MIN_REFRESH_BASELINE = 100
 MIN_REFRESH_RATIO = 0.2
-MODALITY_SUBTYPES = (("online_async", "online_async"), ("online_sync", "online_sync"))
+MODALITIES = ("online_async", "online_sync")
 WRITE_COUNT_KEYS = ("written", "skipped_unknown_college", "skipped_missing_institution")
 
 
@@ -105,7 +56,7 @@ class OfferingRecord:
     prefix: str
     number: str
     term_code: str
-    modality: str        # "online_async" | "online_sync"
+    modality: str
     source_ref: str
 
 
@@ -115,39 +66,17 @@ class OfferingLookups:
     courses_by_key: dict[tuple[int, str, str], int]
 
 
-# --- HTML parsing ------------------------------------------------------------
-
-# Splits page HTML into per-card chunks. Card containers start with
-# `<div class="course border-gray-400 ..."`. Using a sentinel split is more
-# robust than trying to balance nested tags with regex.
 _CARD_SPLIT = re.compile(r'<div class="course border-gray-400[^"]*"', re.IGNORECASE)
 
-# Within a card, the college name is the first `<div class="font-semibold text-sm">...</div>`.
 _COLLEGE_RE = re.compile(
     r'<div class="font-semibold text-sm">\s*([^<]+?)\s*</div>',
     re.IGNORECASE | re.DOTALL,
 )
-# The course link has class `course-details-link` and text like "MATH45 - Title".
 _LINK_RE = re.compile(
     r'<a[^>]*class="course-details-link[^"]*"[^>]*href="([^"]+)"[^>]*>\s*([^<]+?)\s*</a>',
     re.IGNORECASE | re.DOTALL,
 )
-# Title token pattern: prefix is letters, number is digits with optional letter suffix
-# (e.g. "MATH10", "ENGL1A", "MATH150A", "BT115"). Greedy on letters so multi-letter
-# prefixes like "ENGL" or "PSYC" work.
 _TITLE_TOKEN_RE = re.compile(r'^([A-Z][A-Z&/]{0,9})\s*([0-9]+[A-Z]{0,3})\b')
-
-
-def _unescape(s: str) -> str:
-    """Decode the handful of HTML entities we see in search results."""
-    return (
-        s.replace("&amp;", "&")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", '"')
-        .replace("&#39;", "'")
-        .replace("&nbsp;", " ")
-    )
 
 
 def parse_search_html(
@@ -158,16 +87,15 @@ def parse_search_html(
 ) -> list[OfferingRecord]:
     """Extract OfferingRecords from one rendered CVC search page."""
     chunks = _CARD_SPLIT.split(html)
-    # First chunk is everything before the first card; skip it.
     out: list[OfferingRecord] = []
     for chunk in chunks[1:]:
         college_m = _COLLEGE_RE.search(chunk)
         link_m = _LINK_RE.search(chunk)
         if not (college_m and link_m):
             continue
-        college = _unescape(college_m.group(1))
-        href = _unescape(link_m.group(1))
-        title_text = _unescape(link_m.group(2))
+        college = unescape(college_m.group(1))
+        href = unescape(link_m.group(1))
+        title_text = unescape(link_m.group(2))
         token = _TITLE_TOKEN_RE.match(title_text.upper())
         if not token:
             continue
@@ -229,8 +157,6 @@ def parse_session_names(html: str) -> set[str]:
     return parser.session_names
 
 
-# --- HTTP layer --------------------------------------------------------------
-
 class CVCClient:
     def __init__(self, base_url: str = CVC_BASE_URL):
         self.base_url = base_url.rstrip("/")
@@ -286,7 +212,7 @@ class CVCClient:
         return sessions
 
     def _get_with_retries(self, url: str, *, params: list[tuple[str, str]], page: int) -> httpx.Response:
-        """Retry transient CVC failures without publishing an incomplete crawl."""
+        """Retry transient CVC HTTP failures."""
         last_error: httpx.HTTPError | None = None
         for attempt in range(1, CVC_MAX_RETRIES + 1):
             try:
@@ -347,8 +273,6 @@ class CVCClient:
             return None
         return resp.text
 
-
-# --- DB writer ---------------------------------------------------------------
 
 def write_offerings(
     conn: sqlite3.Connection,
@@ -457,7 +381,7 @@ def _publish_staged_offerings(
     source: str,
     term_ids: list[int],
 ) -> None:
-    """Replace live rows only after the complete staged crawl succeeds."""
+    """Atomically replace selected terms with their staged offerings."""
     with conn:
         db.clear_offerings(conn, source=source, term_ids=term_ids)
         conn.execute(
@@ -513,12 +437,7 @@ def ensure_term(conn: sqlite3.Connection, term: Term) -> int:
 
 
 def ccc_subject_prefixes(conn: sqlite3.Connection) -> list[str]:
-    """Distinct subject prefixes for CCC courses already in the DB.
-
-    This is the iteration set for CVC ingestion. A prefix not present here
-    is a course that doesn't articulate anywhere in our data — so we'd
-    never surface its offering status, even if CVC has it.
-    """
+    """Distinct subject prefixes for CCC courses already in the DB."""
     rows = conn.execute(
         """SELECT DISTINCT UPPER(c.prefix) AS p
            FROM courses c
@@ -577,7 +496,6 @@ def _crawl_subject(
     client: CVCClient,
     conn: sqlite3.Connection,
     term: Term,
-    subtype: str,
     modality: str,
     subject: str,
     lookups: OfferingLookups,
@@ -587,11 +505,11 @@ def _crawl_subject(
     pages = 0
     last_page: int | None = None
     for page in range(1, MAX_PAGES_PER_QUERY + 1):
-        html = client.search_html(term, subtype, subject, page=page)
+        html = client.search_html(term, modality, subject, page=page)
         if html is None:
             raise RuntimeError(
                 "CVC refresh incomplete at "
-                f"{term.code}/{subtype} subject={subject} page={page}; "
+                f"{term.code}/{modality} subject={subject} page={page}; "
                 "existing offerings were preserved"
             )
         card_count = count_cards(html)
@@ -599,11 +517,11 @@ def _crawl_subject(
             break
         last_page = max(last_page or 0, advertised_last_page(html) or 0) or None
         records = parse_search_html(html, term_code=term.code, modality=modality)
-        if not records:
-            raise RuntimeError(
-                "CVC page contained course cards but none could be parsed at "
-                f"{term.code}/{subtype} subject={subject} page={page}; "
-                "existing offerings were preserved"
+        skipped = card_count - len(records)
+        if skipped:
+            log.warning(
+                "Skipping %d/%d unparseable CVC cards at %s/%s subject=%s page=%d",
+                skipped, card_count, term.code, modality, subject, page,
             )
         counts = write_offerings(conn, records, term, staging=True, lookups=lookups)
         _add_write_counts(totals, counts)
@@ -612,7 +530,7 @@ def _crawl_subject(
         log.info(
             "    %s/%s subj=%s p%d: %d cards parsed, %d written",
             term.code,
-            subtype,
+            modality,
             subject,
             page,
             len(records),
@@ -625,7 +543,7 @@ def _crawl_subject(
         if page == MAX_PAGES_PER_QUERY:
             raise RuntimeError(
                 "CVC refresh hit the pagination safety cap at "
-                f"{term.code}/{subtype} subject={subject}; "
+                f"{term.code}/{modality} subject={subject}; "
                 "existing offerings were preserved"
             )
     return totals, cards, pages
@@ -644,15 +562,15 @@ def _crawl_live_offerings(
     totals = _empty_write_counts()
     log.info(
         "Estimated minimum runtime: %.1f min (pagination extends this)",
-        THROTTLE_S * len(MODALITY_SUBTYPES) * len(subjects) * len(terms) / 60.0,
+        THROTTLE_S * len(MODALITIES) * len(subjects) * len(terms) / 60.0,
     )
     with CVCClient() as client:
         for term in terms:
             term_total = 0
-            for subtype, modality in MODALITY_SUBTYPES:
+            for modality in MODALITIES:
                 for index, subject in enumerate(subjects, start=1):
                     counts, cards, pages = _crawl_subject(
-                        client, conn, term, subtype, modality, subject, lookups
+                        client, conn, term, modality, subject, lookups
                     )
                     _add_write_counts(totals, counts)
                     term_total += counts["written"]
@@ -660,7 +578,7 @@ def _crawl_live_offerings(
                         log.info(
                             "  %s / %s subj=%-8s [%d/%d] %d cards (%d pages)",
                             term.code,
-                            subtype,
+                            modality,
                             subject,
                             index,
                             len(subjects),
@@ -677,8 +595,6 @@ def _crawl_live_offerings(
     _publish_staged_offerings(conn, source="cvc", term_ids=term_ids)
     return totals
 
-
-# --- Entry point -------------------------------------------------------------
 
 def ingest_terms(
     term_codes: list[str],

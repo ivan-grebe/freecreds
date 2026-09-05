@@ -13,13 +13,9 @@ const JSON_HEADERS = {
 };
 
 export function json(data: unknown, init: ResponseInit = {}): Response {
-  return new Response(JSON.stringify(data), {
-    ...init,
-    headers: {
-      ...JSON_HEADERS,
-      ...(init.headers || {}),
-    },
-  });
+  const headers = new Headers(JSON_HEADERS);
+  new Headers(init.headers).forEach((value, name) => headers.set(name, value));
+  return Response.json(data, { ...init, headers });
 }
 
 export async function cachedResponse(
