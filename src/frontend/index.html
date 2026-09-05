@@ -555,22 +555,22 @@
     .result-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0; }
     .secondary-button { color: var(--ink); background: var(--paper-alt); border: 2px outset var(--line); padding: 8px 12px; min-height: 44px; font-weight: bold; cursor: pointer; }
     .secondary-button:hover { background: var(--blue-light); }
-    .college-list { display: grid; gap: 12px; }
-    .college-card { border: 1px solid var(--line-dark); background: var(--paper); }
-    .college-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px; padding: 9px 10px; background: var(--table-head); border-bottom: 1px solid var(--line); }
-    .college-heading h3 { margin: 0; font: bold 14px Tahoma, sans-serif; }
-    .college-heading span { color: var(--muted); font-size: 11px; }
+    .college-list { display: grid; gap: 8px; }
+    .college-card { position: relative; border: 1px solid var(--line-dark); background: var(--paper); }
+    .college-heading { display: flex; align-items: center; min-height: 44px; margin: 0; padding: 7px 88px 7px 10px; background: var(--table-head); border-bottom: 1px solid var(--line); font: bold 14px Tahoma, sans-serif; }
     .course-options { list-style: none; padding: 0; margin: 0; }
-    .course-option { padding: 12px; border-bottom: 1px dotted var(--line); }
+    .course-option { padding: 8px 10px; border-bottom: 1px dotted var(--line); }
     .course-option:last-child { border-bottom: 0; }
-    .course-name { margin: 0 0 5px; font-size: 13px; }
+    .course-name { margin: 0; font-size: 13px; }
     .course-name strong { font-size: 15px; }
     .course-name span { margin-left: 8px; }
     .course-option .companion-list { color: var(--ink); font-size: 12px; }
-    .agreement-details { margin: 4px 0 0; border: 0; background: transparent; }
-    .agreement-details summary { min-height: 36px; padding: 6px 0; color: var(--muted); cursor: pointer; font-size: 11px; text-transform: none; }
-    .agreement-details p { margin: 4px 0; font-size: 11px; }
-    .listing-heading { margin: 10px 0 3px; font-size: 11px; font-weight: bold; }
+    .agreement-details { margin: 0; border: 0; background: transparent; }
+    .agreement-details summary { position: absolute; top: 0; right: 0; min-height: 44px; padding: 6px 10px; color: var(--muted); cursor: pointer; font-size: 11px; text-transform: none; }
+    .agreement-body { padding: 8px 10px; background: var(--paper-alt); border-bottom: 1px solid var(--line); font-size: 11px; }
+    .agreement-body p { margin: 4px 0; }
+    .agreement-body ul { margin: 6px 0; padding-left: 16px; }
+    .agreement-body li { margin: 4px 0; }
     .cvc-link { display: inline-flex; align-items: center; min-height: 36px; font-size: 11px; }
     :root[data-effective-theme="dark"] { --lime: #233e2d; }
     :root[data-effective-theme="dark"] a { color: #add8ff; }

@@ -18,8 +18,8 @@ function courseOption(row, selectedTerms) {
     el("span", {}, course.title),
   ])];
   if (!row.is_standalone) {
-    content.push(el("strong", {}, "Complete all of these courses:"));
-    content.push(el("ul", { class: "companion-list" }, [course, ...row.companion_courses]
+    content.push(el("strong", {}, "Also required for this match:"));
+    content.push(el("ul", { class: "companion-list" }, row.companion_courses
       .map(c => el("li", {}, courseLabel(c)))));
   }
   if (row.receiving_companion_courses?.length) {
@@ -31,7 +31,6 @@ function courseOption(row, selectedTerms) {
   if (source.text) content.push(el("p", { class: "source-note" }, source.text));
 
   if (selectedTerms.length) {
-    content.push(el("p", { class: "listing-heading" }, "Online listing found"));
     content.push(el("ul", { class: "offering-list" }, selectedTerms.map(selected => {
       const term = row.offering_terms?.find(t => t.code === selected.code);
       const status = term?.status;
@@ -41,7 +40,7 @@ function courseOption(row, selectedTerms) {
           ? { className: "online-sync", label: "Online sync" }
           : { className: "unknown", label: "No listing found" };
       const children = [
-        el("span", { class: "offering-term" }, selected.label),
+        selectedTerms.length > 1 ? el("span", { class: "offering-term" }, selected.label) : null,
         el("span", { class: `badge ${badge.className}` }, badge.label),
       ];
       const href = cvcSourceHref(term?.source_ref);
@@ -55,16 +54,28 @@ function courseOption(row, selectedTerms) {
       `CVC links open ${course.prefix} ${course.number}. Check every required course before enrolling.`));
   }
 
-  const units = course.min_units != null
-    ? `${course.min_units}${course.max_units != null && course.max_units !== course.min_units ? `–${course.max_units}` : ""} units`
-    : "Units not recorded";
-  content.push(el("details", { class: "agreement-details" }, [
-    el("summary", {}, `Agreement ${row.academic_year || "year unknown"} · Details`),
-    el("p", {}, `${units} · College code: ${row.cc_code}`),
-    el("p", {}, `ASSIST agreement: ${row.academic_year || "year unknown"}. The agreement year is separate from the data refresh date.`),
-    el("p", {}, source.title || source.text || "Department agreement"),
-  ]));
   return el("li", { class: "course-option" }, content);
+}
+
+function agreementDetails(options) {
+  return el("details", { class: "agreement-details" }, [
+    el("summary", { "aria-label": `Agreement details for ${options[0].cc_name}` }, "Details"),
+    el("div", { class: "agreement-body" }, [
+      el("p", {}, "ASSIST agreements apply to the academic year shown, independently of the data refresh date. Verify older agreements before enrolling."),
+      el("ul", {}, options.map(row => {
+        const course = row.cc_course;
+        const units = course.min_units != null
+          ? `${course.min_units}${course.max_units != null && course.max_units !== course.min_units ? `–${course.max_units}` : ""} units`
+          : "Units not recorded";
+        const source = renderSourceLabel(row.sources);
+        return el("li", {}, [
+          el("strong", {}, `${course.prefix} ${course.number}`),
+          ` · ${units} · Agreement ${row.academic_year || "year unknown"} · ${source.title || source.text || "Department agreement"}`,
+        ]);
+      })),
+      el("p", {}, `College code: ${options[0].cc_code}`),
+    ]),
+  ]);
 }
 
 export function renderResults(output, data, { showAll, includeCombinations, cvcRefresh, standaloneOnly }) {
@@ -86,7 +97,7 @@ export function renderResults(output, data, { showAll, includeCombinations, cvcR
   );
   if (terms.length) {
     output.appendChild(el("p", { class: "cvc-callout" },
-      `${cvcRefresh}. Listings do not confirm open seats. A missing listing does not mean a class is unavailable. Verify on CVC and with the college.`));
+      `${cvcRefresh}. Check CVC for open seats. A missing listing does not mean a course is unavailable.`));
     output.appendChild(el("div", { class: "result-actions" }, actionButton("Show all transfer matches", showAll)));
   }
   if (!rows.length) {
@@ -97,10 +108,8 @@ export function renderResults(output, data, { showAll, includeCombinations, cvcR
   }
   output.appendChild(el("div", { class: "college-list" }, [...colleges.values()].map(options =>
     el("article", { class: "college-card" }, [
-      el("div", { class: "college-heading" }, [
-        el("h3", {}, options[0].cc_name),
-        el("span", {}, `${options.length} ${options.length === 1 ? "option" : "alternatives"}`),
-      ]),
+      el("h3", { class: "college-heading" }, options[0].cc_name),
+      agreementDetails(options),
       el("ul", { class: "course-options" }, options.map(row => courseOption(row, terms))),
     ]))));
   if (data.no_articulation.length) {
