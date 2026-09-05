@@ -89,6 +89,8 @@ def parse_search_html(
     chunks = _CARD_SPLIT.split(html)
     out: list[OfferingRecord] = []
     for chunk in chunks[1:]:
+        if "No upcoming sessions matching your filter" in chunk:
+            continue
         college_m = _COLLEGE_RE.search(chunk)
         link_m = _LINK_RE.search(chunk)
         if not (college_m and link_m):
@@ -256,6 +258,10 @@ class CVCClient:
             ("filter[university_id]", CVC_HOME_UNIVERSITY_ID),
             ("filter[session_names][]", term.label),
             ("filter[delivery_method_subtypes][]", modality_subtype),
+            # CVC defaults hide started classes and restrict enrollment eligibility.
+            ("filter[start_date]", ""),
+            ("filter[show_only_available]", "false"),
+            ("filter[oei_phase_2_filter]", "false"),
             ("filter[subject]", subject.lower()),
             ("page", str(page)),
         ]
@@ -520,7 +526,7 @@ def _crawl_subject(
         skipped = card_count - len(records)
         if skipped:
             log.warning(
-                "Skipping %d/%d unparseable CVC cards at %s/%s subject=%s page=%d",
+                "Skipping %d/%d CVC cards without a parseable offering at %s/%s subject=%s page=%d",
                 skipped, card_count, term.code, modality, subject, page,
             )
         counts = write_offerings(conn, records, term, staging=True, lookups=lookups)
@@ -528,7 +534,7 @@ def _crawl_subject(
         cards += len(records)
         pages += 1
         log.info(
-            "    %s/%s subj=%s p%d: %d cards parsed, %d written",
+            "    %s/%s subj=%s p%d: %d cards parsed, %d upserts",
             term.code,
             modality,
             subject,
@@ -585,7 +591,14 @@ def _crawl_live_offerings(
                             cards,
                             pages,
                         )
-            log.info("Term %s: %d offerings written", term.code, term_total)
+            distinct_count = conn.execute(
+                "SELECT COUNT(*) FROM cvc_offerings_staging WHERE term_id = ?",
+                (db.get_term_id_by_code(conn, term.code),),
+            ).fetchone()[0]
+            log.info(
+                "Term %s: %d distinct offerings (%d upserts across overlapping searches)",
+                term.code, distinct_count, term_total,
+            )
     _validate_staged_offerings(
         conn,
         source="cvc",

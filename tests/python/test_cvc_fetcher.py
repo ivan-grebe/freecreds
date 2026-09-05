@@ -136,6 +136,9 @@ def test_search_html_sends_home_context_and_normalized_subject():
     assert ("filter[display_home_school]", "false") in fake.params
     assert ("filter[university_id]", CVC_HOME_UNIVERSITY_ID) in fake.params
     assert ("filter[subject]", "math") in fake.params
+    assert ("filter[start_date]", "") in fake.params
+    assert ("filter[show_only_available]", "false") in fake.params
+    assert ("filter[oei_phase_2_filter]", "false") in fake.params
     assert ("page", "3") in fake.params
 
 
@@ -174,6 +177,16 @@ def test_parse_search_html_skips_unparseable_titles():
     </div>
     """
     assert parse_search_html(html, term_code="FA26", modality="online_async") == []
+
+
+def test_courses_without_matching_sessions_are_not_offerings():
+    html = CARD_HTML.replace(
+        "</h3>",
+        '</h3><div class="term">No upcoming sessions matching your filter</div>',
+        1,
+    )
+    records = parse_search_html(html, term_code="FA26", modality="online_async")
+    assert [(r.prefix, r.number) for r in records] == [("ENGL", "1A")]
 
 
 def test_parse_synthetic_fixture_has_cards():
@@ -485,7 +498,7 @@ def test_unparseable_cards_do_not_block_pagination_or_publication(
     if "ENGL1A" in bad_html:
         expected.add(f"https://search.cvc.edu/courses/MATH-{bad_page}-999")
     assert refs == expected
-    assert "unparseable CVC cards" in caplog.text
+    assert "CVC cards without a parseable offering" in caplog.text
     assert f"FA26/online_async subject=MATH page={bad_page}" in caplog.text
 
 
