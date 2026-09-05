@@ -66,6 +66,14 @@ class OfferingLookups:
     courses_by_key: dict[tuple[int, str, str], int]
 
 
+@dataclass
+class SearchPage:
+    records: list[OfferingRecord]
+    card_count: int
+    no_matching_sessions: int
+    unparseable: list[str]
+
+
 _CARD_SPLIT = re.compile(r'<div class="course border-gray-400[^"]*"', re.IGNORECASE)
 
 _COLLEGE_RE = re.compile(
@@ -76,7 +84,7 @@ _LINK_RE = re.compile(
     r'<a[^>]*class="course-details-link[^"]*"[^>]*href="([^"]+)"[^>]*>\s*([^<]+?)\s*</a>',
     re.IGNORECASE | re.DOTALL,
 )
-_TITLE_TOKEN_RE = re.compile(r'^([A-Z][A-Z&/]{0,9})\s*([0-9]+[A-Z]{0,3})\b')
+_TITLE_TOKEN_RE = re.compile(r'^([A-Z][A-Z&/.]*)\s*([0-9]+[A-Z]*)(?=\s|$)')
 
 
 def parse_search_html(
@@ -84,28 +92,31 @@ def parse_search_html(
     *,
     term_code: str,
     modality: str,
-) -> list[OfferingRecord]:
-    """Extract OfferingRecords from one rendered CVC search page."""
+) -> SearchPage:
+    """Extract offerings and distinguish absent sessions from malformed cards."""
     chunks = _CARD_SPLIT.split(html)
-    out: list[OfferingRecord] = []
+    result = SearchPage([], len(chunks) - 1, 0, [])
     for chunk in chunks[1:]:
         if "No upcoming sessions matching your filter" in chunk:
+            result.no_matching_sessions += 1
             continue
         college_m = _COLLEGE_RE.search(chunk)
         link_m = _LINK_RE.search(chunk)
         if not (college_m and link_m):
+            result.unparseable.append("missing college or course link")
             continue
         college = unescape(college_m.group(1))
         href = unescape(link_m.group(1))
         title_text = unescape(link_m.group(2))
         token = _TITLE_TOKEN_RE.match(title_text.upper())
         if not token:
+            result.unparseable.append(title_text)
             continue
         prefix, number = token.group(1), token.group(2)
         source_ref = href.split("?", 1)[0] if href.startswith("http") else (
             CVC_BASE_URL + href.split("?", 1)[0]
         )
-        out.append(OfferingRecord(
+        result.records.append(OfferingRecord(
             college_name=college,
             prefix=prefix,
             number=number,
@@ -113,12 +124,7 @@ def parse_search_html(
             modality=modality,
             source_ref=source_ref,
         ))
-    return out
-
-
-def count_cards(html: str) -> int:
-    """Used to detect end-of-pagination: a zero-card page means stop."""
-    return max(0, len(_CARD_SPLIT.split(html)) - 1)
+    return result
 
 
 def has_next_page(html: str) -> bool:
@@ -485,7 +491,7 @@ def _ingest_fixture(
     html = fixture_path.read_text(encoding="utf-8", errors="replace")
     totals = _empty_write_counts()
     for term in terms:
-        records = parse_search_html(html, term_code=term.code, modality="online_async")
+        records = parse_search_html(html, term_code=term.code, modality="online_async").records
         counts = write_offerings(conn, records, term, staging=True, lookups=lookups)
         _add_write_counts(totals, counts)
         log.info(
@@ -518,28 +524,29 @@ def _crawl_subject(
                 f"{term.code}/{modality} subject={subject} page={page}; "
                 "existing offerings were preserved"
             )
-        card_count = count_cards(html)
-        if card_count == 0:
+        parsed = parse_search_html(html, term_code=term.code, modality=modality)
+        if parsed.card_count == 0:
             break
         last_page = max(last_page or 0, advertised_last_page(html) or 0) or None
-        records = parse_search_html(html, term_code=term.code, modality=modality)
-        skipped = card_count - len(records)
-        if skipped:
+        records = parsed.records
+        if parsed.unparseable:
             log.warning(
-                "Skipping %d/%d CVC cards without a parseable offering at %s/%s subject=%s page=%d",
-                skipped, card_count, term.code, modality, subject, page,
+                "Skipping %d/%d unrecognized CVC cards at %s/%s subject=%s page=%d: %s",
+                len(parsed.unparseable), parsed.card_count, term.code, modality, subject, page,
+                "; ".join(parsed.unparseable[:3]),
             )
         counts = write_offerings(conn, records, term, staging=True, lookups=lookups)
         _add_write_counts(totals, counts)
         cards += len(records)
         pages += 1
         log.info(
-            "    %s/%s subj=%s p%d: %d cards parsed, %d upserts",
+            "    %s/%s subj=%s p%d: %d offerings parsed, %d without matching sessions, %d upserts",
             term.code,
             modality,
             subject,
             page,
             len(records),
+            parsed.no_matching_sessions,
             counts["written"],
         )
         if last_page is not None and page >= last_page:

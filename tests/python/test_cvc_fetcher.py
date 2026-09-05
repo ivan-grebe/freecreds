@@ -13,7 +13,6 @@ from freecreds.cvc_fetcher import (
     CVCClient,
     OfferingRecord,
     advertised_last_page,
-    count_cards,
     ensure_term,
     has_next_page,
     parse_search_html,
@@ -72,7 +71,7 @@ CARD_HTML = """
 
 
 def test_parse_search_html_minimal():
-    records = parse_search_html(CARD_HTML, term_code="FA26", modality="online_async")
+    records = parse_search_html(CARD_HTML, term_code="FA26", modality="online_async").records
     assert len(records) == 2
     assert records[0].college_name == "Coalinga College"
     assert records[0].prefix == "MATH"
@@ -86,15 +85,16 @@ def test_parse_search_html_minimal():
     assert records[1].number == "1A"
 
 
-def test_count_cards_matches_parse():
-    assert count_cards(CARD_HTML) == 2
-    assert count_cards("<html><body>no results</body></html>") == 0
+def test_empty_search_page():
+    page = parse_search_html("<html></html>", term_code="FA26", modality="online_async")
+    assert page.card_count == 0
+    assert page.records == []
 
 
 def test_parse_search_html_decodes_numeric_entities():
     html = CARD_HTML.replace("Coalinga College", "Coalinga&#32;College")
     html = html.replace("MATH45", "MATH&#52;5")
-    records = parse_search_html(html, term_code="FA26", modality="online_async")
+    records = parse_search_html(html, term_code="FA26", modality="online_async").records
     assert records[0].college_name == "Coalinga College"
     assert records[0].number == "45"
 
@@ -176,7 +176,9 @@ def test_parse_search_html_skips_unparseable_titles():
       <a class="course-details-link" href="/x">Something without a course code</a>
     </div>
     """
-    assert parse_search_html(html, term_code="FA26", modality="online_async") == []
+    page = parse_search_html(html, term_code="FA26", modality="online_async")
+    assert page.records == []
+    assert page.unparseable == ["Something without a course code"]
 
 
 def test_courses_without_matching_sessions_are_not_offerings():
@@ -185,13 +187,37 @@ def test_courses_without_matching_sessions_are_not_offerings():
         '</h3><div class="term">No upcoming sessions matching your filter</div>',
         1,
     )
-    records = parse_search_html(html, term_code="FA26", modality="online_async")
-    assert [(r.prefix, r.number) for r in records] == [("ENGL", "1A")]
+    page = parse_search_html(html, term_code="FA26", modality="online_async")
+    assert [(r.prefix, r.number) for r in page.records] == [("ENGL", "1A")]
+    assert page.card_count == 2
+    assert page.no_matching_sessions == 1
+    assert page.unparseable == []
+
+
+@pytest.mark.parametrize("code,prefix,number", [
+    ("E.S.L.003C", "E.S.L.", "003C"),
+    ("WE186WELD", "WE", "186WELD"),
+    ("WE189GNRL", "WE", "189GNRL"),
+])
+def test_parse_punctuated_subjects_and_full_course_suffixes(code, prefix, number):
+    page = parse_search_html(
+        CARD_HTML.replace("MATH45", code), term_code="FA26", modality="online_async",
+    )
+    assert (page.records[0].prefix, page.records[0].number) == (prefix, number)
+    assert page.unparseable == []
+
+
+def test_parser_does_not_silently_truncate_unsupported_course_numbers():
+    page = parse_search_html(
+        CARD_HTML.replace("MATH45", "MATH1.5"), term_code="FA26", modality="online_async",
+    )
+    assert [(r.prefix, r.number) for r in page.records] == [("ENGL", "1A")]
+    assert page.unparseable == ["MATH1.5 - Contemporary Math"]
 
 
 def test_parse_synthetic_fixture_has_cards():
     html = FIXTURE.read_text(encoding="utf-8", errors="replace")
-    records = parse_search_html(html, term_code="FA26", modality="online_async")
+    records = parse_search_html(html, term_code="FA26", modality="online_async").records
     assert len(records) == 3
     for r in records:
         assert r.college_name
@@ -376,7 +402,7 @@ def test_failed_crawl_preserves_existing_offerings(
 @pytest.mark.parametrize("html", [
     "<html><body><p>No recognizable cards</p></body></html>",
     '<div class="course border-gray-400"><p>New markup</p></div>',
-    CARD_HTML.replace("MATH45", "WE186WELD").replace("ENGL1A", "E.S.L.1"),
+    CARD_HTML.replace("MATH45", "45").replace("ENGL1A", "1A"),
 ])
 def test_empty_crawl_preserves_existing_offerings(
     tmp_path: Path,
@@ -423,8 +449,8 @@ def test_empty_crawl_preserves_existing_offerings(
 @pytest.mark.parametrize("bad_page", [1, 2, 3])
 @pytest.mark.parametrize("bad_html", [
     '<div class="course border-gray-400"><p>New markup</p></div>',
-    CARD_HTML.replace("MATH45", "WE186WELD").replace("ENGL1A", "E.S.L.1"),
-    CARD_HTML.replace("MATH45", "WE186WELD"),
+    CARD_HTML.replace("MATH45", "45").replace("ENGL1A", "1A"),
+    CARD_HTML.replace("MATH45", "45"),
 ])
 def test_unparseable_cards_do_not_block_pagination_or_publication(
     tmp_path: Path,
@@ -498,7 +524,7 @@ def test_unparseable_cards_do_not_block_pagination_or_publication(
     if "ENGL1A" in bad_html:
         expected.add(f"https://search.cvc.edu/courses/MATH-{bad_page}-999")
     assert refs == expected
-    assert "CVC cards without a parseable offering" in caplog.text
+    assert any(record.levelname == "WARNING" for record in caplog.records)
     assert f"FA26/online_async subject=MATH page={bad_page}" in caplog.text
 
 
