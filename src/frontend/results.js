@@ -78,6 +78,55 @@ function agreementDetails(options) {
   ]);
 }
 
+function filteredCollegeList(colleges, terms) {
+  const entries = [...colleges.values()].map(options => ({
+    name: options[0].cc_name.toLowerCase(),
+    card: el("article", { class: "college-card" }, [
+      el("h3", { class: "college-heading" }, options[0].cc_name),
+      agreementDetails(options),
+      el("ul", { class: "course-options" }, options.map(row => courseOption(row, terms))),
+      el("div", { class: "agreement-links" }, [...new Map(options.map(row => [row.assist_url, row])).values()]
+        .map(row => el("a", {
+          href: row.assist_url, target: "_blank", rel: "noopener",
+          "aria-label": `View ${row.academic_year} agreements for ${row.cc_name} on ASSIST (opens in a new tab)`,
+        }, `View ${row.academic_year} agreements on ASSIST ↗`))),
+    ]),
+  }));
+  const input = el("input", {
+    type: "text", id: "college-filter", placeholder: "Type a college name…",
+    autocomplete: "off", "aria-controls": "matching-colleges",
+    "aria-describedby": "college-filter-status",
+  });
+  const status = el("p", { id: "college-filter-status", role: "status", "aria-atomic": "true" });
+  const empty = el("p", { hidden: "" }, "No matching colleges. Clear the filter or try another name.");
+  function filter() {
+    const name = input.value.trim().toLowerCase();
+    let visible = 0;
+    for (const entry of entries) {
+      entry.card.hidden = !entry.name.includes(name);
+      if (!entry.card.hidden) visible += 1;
+    }
+    status.textContent = `Showing ${visible} of ${entries.length} ${entries.length === 1 ? "college" : "colleges"}`;
+    empty.hidden = visible !== 0;
+  }
+  const clear = actionButton("Clear filter", () => {
+    input.value = "";
+    filter();
+    input.focus();
+  });
+  input.addEventListener("input", filter);
+  filter();
+  return [
+    el("div", { class: "college-filter" }, [
+      el("div", { class: "field" }, [el("label", { for: "college-filter" }, "Filter matching colleges"), input]),
+      clear,
+      status,
+    ]),
+    empty,
+    el("div", { class: "college-list", id: "matching-colleges" }, entries.map(entry => entry.card)),
+  ];
+}
+
 export function renderResults(output, data, { showAll, includeCombinations, cvcRefresh, standaloneOnly }) {
   const query = data.query;
   const terms = query.terms || [];
@@ -106,12 +155,7 @@ export function renderResults(output, data, { showAll, includeCombinations, cvcR
       : "No transfer matches were found with these options. Try another course or include course combinations."));
     if (standaloneOnly) output.appendChild(actionButton("Include course combinations", includeCombinations));
   }
-  output.appendChild(el("div", { class: "college-list" }, [...colleges.values()].map(options =>
-    el("article", { class: "college-card" }, [
-      el("h3", { class: "college-heading" }, options[0].cc_name),
-      agreementDetails(options),
-      el("ul", { class: "course-options" }, options.map(row => courseOption(row, terms))),
-    ]))));
+  if (colleges.size) output.append(...filteredCollegeList(colleges, terms));
   if (data.no_articulation.length) {
     output.appendChild(el("details", {}, [
       el("summary", {}, `${data.no_articulation.length} colleges with no articulation on record`),

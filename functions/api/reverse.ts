@@ -250,7 +250,7 @@ async function queryReverseRows(
   standaloneOnly: boolean,
 ): Promise<ReverseIndexRow[]> {
   let sql = `
-    SELECT cc.code AS cc_code, cc.name AS cc_name,
+    SELECT cc.code AS cc_code, cc.name AS cc_name, cc.assist_id AS cc_assist_id,
            c_cc.id AS cc_course_id,
            c_cc.prefix AS cc_prefix, c_cc.number AS cc_number,
            c_cc.title AS cc_title,
@@ -477,13 +477,25 @@ function reverseCacheKey(query: ReverseQuery): string {
     async: query.asyncOnly ? "1" : "0",
   });
   for (const termCode of [...query.termCodes].sort()) params.append("term", termCode);
-  return `reverse-v2?${params.toString()}`;
+  return `reverse-v3?${params.toString()}`;
+}
+
+function assistAgreementUrl(yearId: number, sendingId: number, receivingId: number): string {
+  const params = new URLSearchParams({
+    year: String(yearId),
+    institution: String(sendingId),
+    agreement: String(receivingId),
+    agreementType: "to",
+    viewAgreementsOptions: "true",
+    view: "agreement",
+  });
+  return `https://assist.org/transfer/results?${params.toString()}`;
 }
 
 export async function buildReverseResponse(env: Env, query: ReverseQuery): Promise<Response> {
   const uni = await env.DB.prepare(
-    "SELECT id, code, name FROM institutions WHERE code = ? COLLATE NOCASE",
-  ).bind(query.university).first<InstitutionRow>();
+    "SELECT id, assist_id, code, name FROM institutions WHERE code = ? COLLATE NOCASE",
+  ).bind(query.university).first<InstitutionRow & { assist_id: number }>();
   if (!uni) {
     return error(404, `Unknown university code ${JSON.stringify(query.university)}`);
   }
@@ -590,6 +602,7 @@ export async function buildReverseResponse(env: Env, query: ReverseQuery): Promi
       sources,
       academic_year_id: row.academic_year_id,
       academic_year: academicYearLabel(row.academic_year_id),
+      assist_url: assistAgreementUrl(row.academic_year_id, row.cc_assist_id, uni.assist_id),
     });
   }
 

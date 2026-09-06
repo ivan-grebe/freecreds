@@ -3,4 +3,4 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), geolocation=(), microphone=()
   Strict-Transport-Security: max-age=63072000
-  Content-Security-Policy: default-src 'self'; connect-src 'self' https://cloudflareinsights.com; img-src 'self' data:; style-src 'self' 'sha256-3iVXlBz9qkb3cTApPwTLoETDxWjg/eaIJGEie5BKxyY=' 'sha256-QxHrIy2kCKkJWsubl/d6f7wrg/0SPxTThd0HOPTlY8A='; script-src 'self' 'sha256-CLfT9S9dkjnvufsvu+2O5ZSq8MMMA+CIMrp1sgMrXUA=' 'sha256-OLn0no47w8iol1tbdfwLvd/90+HA43sjQhUni1xaUZ4=' https://static.cloudflareinsights.com; base-uri 'none'; frame-ancestors 'none'; form-action 'self'
+  Content-Security-Policy: default-src 'self'; connect-src 'self' https://cloudflareinsights.com; img-src 'self' data:; style-src 'self' 'sha256-N/jcpfF6CDt+968Svra8SKvKalQKEWL344BfBaJC9zw=' 'sha256-QxHrIy2kCKkJWsubl/d6f7wrg/0SPxTThd0HOPTlY8A='; script-src 'self' 'sha256-CLfT9S9dkjnvufsvu+2O5ZSq8MMMA+CIMrp1sgMrXUA=' 'sha256-OLn0no47w8iol1tbdfwLvd/90+HA43sjQhUni1xaUZ4=' https://static.cloudflareinsights.com; base-uri 'none'; frame-ancestors 'none'; form-action 'self'

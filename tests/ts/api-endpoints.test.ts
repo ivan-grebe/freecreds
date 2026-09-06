@@ -76,6 +76,12 @@ describe("D1 API queries executed against SQLite", () => {
     expect(response.status).toBe(200);
     expect(payload.query.academic_year_id).toBe(76);
     expect(payload.results.map((row) => row.cc_code)).toEqual(["TESTCC"]);
+    const assistUrl = new URL(payload.results[0].assist_url);
+    expect(assistUrl.origin + assistUrl.pathname).toBe("https://assist.org/transfer/results");
+    expect(Object.fromEntries(assistUrl.searchParams)).toEqual({
+      year: "76", institution: "200", agreement: "100", agreementType: "to",
+      viewAgreementsOptions: "true", view: "agreement",
+    });
     expect(payload.no_articulation.map((row) => row.cc_code)).toEqual(["NOART"]);
   });
 

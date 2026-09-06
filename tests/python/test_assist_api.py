@@ -1,10 +1,35 @@
 from __future__ import annotations
 
+from itertools import permutations
+
 import httpx
 import pytest
 import respx
 
 from freecreds import assist_api
+
+
+@pytest.mark.parametrize("names", list(permutations([
+    {"name": "Compton College", "fromYear": 2019},
+    {"name": "El Camino College", "fromYear": 2006},
+    {"name": "Compton Community College", "fromYear": 1927},
+])))
+def test_institution_name_uses_effective_year_not_response_order(names):
+    institution = {"code": "COMPTON", "names": list(names)}
+    assert assist_api.institution_display_name(institution) == "Compton College"
+    assert assist_api.institution_display_name(institution, 2019) == "Compton College"
+    assert assist_api.institution_display_name(institution, 2018) == "El Camino College"
+    assert assist_api.institution_display_name(institution, 2005) == "Compton Community College"
+    assert assist_api.institution_display_name(institution, 1900) == "COMPTON"
+
+
+def test_institution_name_handles_missing_history_and_undated_names():
+    assert assist_api.institution_display_name({"code": " TEST "}) == "TEST"
+    assert assist_api.institution_display_name({"names": []}) == "?"
+    assert assist_api.institution_display_name({"names": [
+        {"name": "Current", "fromYear": 2020},
+        {"name": "Undated", "fromYear": None},
+    ]}) == "Current"
 
 
 @respx.mock

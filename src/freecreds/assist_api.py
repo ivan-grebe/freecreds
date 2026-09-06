@@ -185,14 +185,12 @@ def find_institution_by_code(
 
 
 def institution_display_name(inst: dict[str, Any], year: int | None = None) -> str:
+    """Select the latest applicable name without assuming API response order."""
     names = inst.get("names") or []
-    if not names:
-        return (inst.get("code") or "?").strip()
     if year is not None:
-        candidates = [n for n in names if (n.get("fromYear") or 0) <= year]
-        if candidates:
-            return candidates[-1].get("name") or (inst.get("code") or "?").strip()
-    return names[-1].get("name") or (inst.get("code") or "?").strip()
+        names = [name for name in names if (name.get("fromYear") or 0) <= year]
+    latest = max(names, key=lambda name: name.get("fromYear") or 0, default={})
+    return latest.get("name") or (inst.get("code") or "?").strip()
 
 
 # --- Smoke test entry point ---

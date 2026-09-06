@@ -17,6 +17,7 @@ export interface CourseRow extends Record<string, unknown> {
 export interface ReverseIndexRow extends Record<string, unknown> {
   cc_code: string;
   cc_name: string;
+  cc_assist_id: number;
   cc_course_id: number;
   cc_prefix: string;
   cc_number: string;
