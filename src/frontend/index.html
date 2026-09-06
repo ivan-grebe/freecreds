@@ -501,6 +501,8 @@
     .web-badge[href] { position: relative; text-decoration: none; }
     .web-badge[href]::after { content: ""; position: absolute; top: 50%; left: 50%; width: max(100%, 44px); height: 40px; transform: translate(-50%, -50%); }
     .footer-note { max-width: 980px; margin: 0 auto; }
+    .footer-note:first-of-type { text-wrap: balance; }
+    .footer-note a { white-space: nowrap; }
     .footer-note + .footer-note { margin-top: 5px; }
 
     @media (max-width: 720px) {
