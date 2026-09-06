@@ -487,12 +487,12 @@
     .suggestion-list { margin: 6px 0 0; padding: 7px; background: var(--paper-alt); border: 1px solid var(--line); font-size: 10px; }
 
     .footer {
-      padding: 10px;
+      padding: 12px 16px;
       color: #d6e6fb;
       background: var(--blue-dark);
       border-top: 4px solid var(--orange);
       text-align: center;
-      font: 9px/1.5 Tahoma, Verdana, sans-serif;
+      font: 10px/1.6 Tahoma, Verdana, sans-serif;
     }
 
     .footer a { color: #ffffff; }
@@ -500,7 +500,8 @@
     .web-badge { display: inline-block; padding: 2px 5px; color: #ffffff; background: #385b85; border: 1px outset #9fb5d0; font: bold 8px Tahoma, sans-serif; letter-spacing: .04em; text-transform: uppercase; }
     .web-badge[href] { position: relative; text-decoration: none; }
     .web-badge[href]::after { content: ""; position: absolute; top: 50%; left: 50%; width: max(100%, 44px); height: 40px; transform: translate(-50%, -50%); }
-    .footer-note { margin: 0; }
+    .footer-note { max-width: 980px; margin: 0 auto; }
+    .footer-note + .footer-note { margin-top: 5px; }
 
     @media (max-width: 720px) {
       body { padding: 6px 4px 18px; font-size: 12px; }
@@ -714,10 +715,19 @@
         <a class="web-badge" href="https://github.com/ivan-grebe/freecreds" target="_blank" rel="noopener">GitHub</a>
       </div>
       <p class="footer-note">
-        Data is periodically refreshed from
-        <a href="https://assist.org" target="_blank" rel="noopener">ASSIST</a> and
+        Course-articulation data is periodically refreshed from
+        <a href="https://assist.org" target="_blank" rel="noopener">ASSIST</a>;
+        online-course listings are periodically refreshed from
         <a href="https://search.cvc.edu" target="_blank" rel="noopener">CVC Exchange</a>.
-        Verify all results with the institutions and a counselor. Not affiliated.
+        Data may be delayed, incomplete, or change without notice.
+      </p>
+      <p class="footer-note">
+        ASSIST, CVC Exchange, and institutional records—not FreeCreds—are the authoritative
+        sources. Confirm
+        transfer credit, prerequisites, enrollment eligibility, availability, and deadlines
+        directly with the relevant institutions and a counselor before enrolling. FreeCreds
+        is independent and is not affiliated with, endorsed by, or operated by ASSIST,
+        CVC Exchange, or any listed institution.
       </p>
     </footer>
   </div>

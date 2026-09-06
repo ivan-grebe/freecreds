@@ -18,6 +18,15 @@ describe("static site metadata", () => {
     expect(frontendFile("404.html")).toContain('<meta name="robots" content="noindex">');
   });
 
+  it("identifies its data sources and independent status", () => {
+    const html = frontendFile("index.html");
+    const text = html.replace(/\s+/g, " ");
+    expect(html).toContain('href="https://assist.org"');
+    expect(html).toContain('href="https://search.cvc.edu"');
+    expect(text).toContain("institutional records—not FreeCreds—are the authoritative sources");
+    expect(text).toContain("is not affiliated with, endorsed by, or operated by ASSIST");
+  });
+
   it("uses hashes instead of unsafe-inline in the content security policy", () => {
     const html = frontendFile("index.html").replace(/\r\n/g, "\n");
     const inlineScript = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
