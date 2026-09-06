@@ -1,0 +1,47 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: #102d50;
+  background: #eaf4ff;
+}
+
+main {
+  max-width: 34rem;
+  padding: 32px;
+  border: 2px solid currentColor;
+  background: Canvas;
+  box-shadow: 8px 8px 0 #ff851b;
+}
+
+.eyebrow {
+  margin: 0;
+  color: #b94d00;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
+h1 {
+  margin-block: 8px;
+}
+
+a {
+  display: inline-block;
+  margin-top: 16px;
+  color: LinkText;
+  font-weight: 700;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    color: #d8ebff;
+    background: #07182c;
+  }
+}

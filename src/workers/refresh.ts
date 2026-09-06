@@ -85,6 +85,32 @@ function normalizeGitHubToken(value: string): string {
     .replace(/[^A-Za-z0-9_]/g, "");
 }
 
+export async function timingSafeTokenEqual(
+  provided: string,
+  expected: string,
+): Promise<boolean> {
+  const encoder = new TextEncoder();
+  const [providedHash, expectedHash] = await Promise.all([
+    crypto.subtle.digest("SHA-256", encoder.encode(provided)),
+    crypto.subtle.digest("SHA-256", encoder.encode(expected)),
+  ]);
+  const providedBytes = new Uint8Array(providedHash);
+  const expectedBytes = new Uint8Array(expectedHash);
+  let difference = 0;
+  for (let index = 0; index < providedBytes.length; index += 1) {
+    difference |= providedBytes[index] ^ expectedBytes[index];
+  }
+  return difference === 0;
+}
+
+function logError(event: string, error: unknown, details: Record<string, unknown> = {}): void {
+  console.error(JSON.stringify({
+    event,
+    error: error instanceof Error ? error.message : String(error),
+    ...details,
+  }));
+}
+
 async function insertJob(env: Env, job: JobRecord): Promise<void> {
   await env.DB.prepare(`
     INSERT INTO ingest_jobs
@@ -219,7 +245,8 @@ async function handleManual(request: Request, env: Env): Promise<Response> {
   }
 
   const auth = request.headers.get("authorization");
-  if (auth !== `Bearer ${env.MANUAL_TRIGGER_TOKEN}`) {
+  const providedToken = auth?.startsWith("Bearer ") ? auth.slice("Bearer ".length) : "";
+  if (!await timingSafeTokenEqual(providedToken, env.MANUAL_TRIGGER_TOKEN)) {
     return json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -235,7 +262,10 @@ async function handleManual(request: Request, env: Env): Promise<Response> {
 
 export default {
   async scheduled(controller, env, ctx) {
-    ctx.waitUntil(handleScheduled(controller.cron, env));
+    ctx.waitUntil(handleScheduled(controller.cron, env).catch((error) => {
+      logError("scheduled_refresh_failed", error, { cron: controller.cron });
+      throw error;
+    }));
   },
 
   async fetch(request, env) {
@@ -246,9 +276,11 @@ export default {
       }
       return json({ ok: true, schedules: CRON_TO_JOB });
     } catch (err) {
-      return json({
-        error: err instanceof Error ? err.message : String(err),
-      }, { status: 500 });
+      logError("refresh_request_failed", err, {
+        method: request.method,
+        path: new URL(request.url).pathname,
+      });
+      return json({ error: "Refresh request failed" }, { status: 500 });
     }
   },
 } satisfies ExportedHandler<Env>;

@@ -1,0 +1,15 @@
+# FreeCreds
+
+> Find California community-college courses that satisfy university transfer requirements, with optional CVC online-course filters.
+
+## Pages
+
+- [FreeCreds](https://freecreds.pages.dev/): Search transfer-course articulations and current or upcoming online listings.
+
+## Sources and limitations
+
+FreeCreds is an independent planning aid using periodically refreshed ASSIST and CVC Exchange data. Results may be delayed or incomplete. Confirm academic decisions with the relevant institutions and a counselor.
+
+## Source
+
+- [GitHub repository](https://github.com/ivan-grebe/freecreds): Source code, setup instructions, tests, and issue tracking.

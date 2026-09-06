@@ -11,3 +11,14 @@ crons = [
 binding = "DB"
 database_name = "freecreds-db-v2"
 database_id = "13d9a1dc-31fb-4f15-ae35-1c6f96677b05"
+
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+
+[observability.traces]
+enabled = true
+head_sampling_rate = 0.01
