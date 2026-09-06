@@ -68,13 +68,14 @@ async function loadDataStatus() {
     const res = await fetch("/api/status");
     if (!res.ok) throw new Error("Status unavailable");
     const { updated_at: updatedAt } = await res.json();
-    assistUpdated.textContent = `ASSIST: ${formatRefreshTime(updatedAt?.assist)}`;
+    if (updatedAt?.assist) {
+      assistUpdated.textContent = `ASSIST: ${formatRefreshTime(updatedAt.assist)}`;
+    }
     cvcUpdated.textContent = `CVC: ${formatRefreshTime(updatedAt?.cvc)}`;
     cvcRefresh = updatedAt?.cvc
       ? `CVC listings last checked ${formatRefreshTime(updatedAt.cvc)}`
       : "CVC refresh date unavailable";
   } catch {
-    assistUpdated.textContent = "ASSIST: unavailable";
     cvcUpdated.textContent = "CVC: unavailable";
   }
 }
