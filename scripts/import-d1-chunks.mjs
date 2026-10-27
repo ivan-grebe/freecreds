@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-const [inputArg = "d1_import", database = "freecreds-db"] = process.argv.slice(2);
+const [inputArg = "d1_import", database = "freecreds-db-v2"] = process.argv.slice(2);
 const inputDir = resolve(inputArg);
 const manifestPath = join(inputDir, "manifest.json");
 
